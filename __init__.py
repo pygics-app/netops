@@ -11,11 +11,11 @@ from grammar import *
 from page import *
 from model import *
 
-class NetOper(pygics.__PYGICS__):
+class NetOps(pygics.__PYGICS__):
     
     def __init__(self, base_dir):
-        self.pid = base_dir + '/netoper.pid'
-        self.conf = base_dir + '/netoper.conf'
+        self.pid = base_dir + '/netops.pid'
+        self.conf = base_dir + '/netops.conf'
         self.d_dhcp = base_dir + '/dhcp'
         self.r_dhcp = self.d_dhcp + '/range.conf'
         self.h_dhcp = self.d_dhcp + '/host.conf'
@@ -27,12 +27,12 @@ class NetOper(pygics.__PYGICS__):
     
     def start(self):
         cmd = '/usr/sbin/dnsmasq --user=root --group=root -h -x %s -C %s -7 %s -r %s -H %s' % (self.pid, self.conf, self.d_dhcp, self.r_dns, self.h_dns)
-        print('NetOper Start : %s' % 'ok' if os.system(cmd) == 0 else 'failed')
+        print('NetOps Start : %s' % ('ok' if os.system(cmd) == 0 else 'failed'))
         return self
     
     def stop(self):
         cmd = 'kill -9 `cat %s`; rm -rf %s' % (self.pid, self.pid)
-        print('NetOper Stop : %s' % 'ok' if os.system(cmd) == 0 else 'failed')
+        print('NetOps Stop : %s' % ('ok' if os.system(cmd) == 0 else 'failed'))
         return self
     
     def reload(self):
@@ -40,7 +40,7 @@ class NetOper(pygics.__PYGICS__):
         self.start()
         return self
 
-no = NetOper(PWD() + '/native').reload()
+no = NetOps(PWD() + '/native').reload()
    
 #===============================================================================
 # Internal APIs
@@ -255,27 +255,27 @@ def api_delHost(req, mac='', ip=''):
 #===============================================================================
 # Page
 #===============================================================================
-netoper = PAGE(resource='resource', template=PAGE.TEMPLATE.SIMPLE_DK)
+netops = PAGE(resource='resource', template=PAGE.TEMPLATE.SIMPLE_DK)
 
-@PAGE.MAIN(netoper, 'DHCP & DNS')
+@PAGE.MAIN(netops, 'NetOps')
 def dnsmasq_main_page(req):
     return 'DHCP & DNS'
 
-@PAGE.MENU(netoper, 'DHCP', 'id-card')
+@PAGE.MENU(netops, 'DHCP', 'id-card')
 def dhcp_setting(req):
     return DIV().html(
         HEAD(1).html('DHCP Setting'),
         ROW().html(
             COL(6, 'xs', STYLE='min-width:390px;').html(
-                netoper.patch('dhcp_environment_setting'),
+                netops.patch('dhcp_environment_setting'),
             ),
             COL(6, 'xs', STYLE='min-width:390px;').html(
-                netoper.patch('dhcp_range_setting')
+                netops.patch('dhcp_range_setting')
             )
         )
     )
     
-@PAGE.VIEW(netoper)
+@PAGE.VIEW(netops)
 def dhcp_environment_setting(req):
     
     if req.method == 'POST':
@@ -304,7 +304,7 @@ def dhcp_environment_setting(req):
         
     return DIV().html(
         HEAD(2, STYLE='float:left;').html('Environment'),
-        netoper.context(
+        netops.context(
             BUTTON(CLASS='btn-primary', STYLE='height:33px;').html('Save'),
             global_context,
             'dhcp_environment_setting',
@@ -313,7 +313,7 @@ def dhcp_environment_setting(req):
         global_context,
     )
 
-@PAGE.VIEW(netoper)
+@PAGE.VIEW(netops)
 def dhcp_range_setting(req):
     
     if req.method == 'POST':
@@ -342,7 +342,7 @@ def dhcp_range_setting(req):
         
     return DIV().html(
         HEAD(2, STYLE='float:left;').html('Range'),
-        netoper.context(
+        netops.context(
             BUTTON(CLASS='btn-primary', STYLE='height:33px;').html('Save'),
             range_context,
             'dhcp_range_setting',
@@ -351,15 +351,15 @@ def dhcp_range_setting(req):
         range_context,
     )
 
-@PAGE.MENU(netoper, 'Host', 'id-card')
+@PAGE.MENU(netops, 'Host', 'id-card')
 def host_setting(req):
     
     return DIV().html(
         HEAD(1).html('Host Setting'),
-        netoper.patch('host_context'),
+        netops.patch('host_context'),
     )
 
-@PAGE.VIEW(netoper)
+@PAGE.VIEW(netops)
 def host_context(req):
     
     if req.method == 'POST':
@@ -384,7 +384,7 @@ def host_context(req):
 
     return DIV().html(
         HEAD(2, STYLE='float:left;').html('Register'),
-        netoper.context(
+        netops.context(
             BUTTON(CLASS='btn-primary', STYLE='height:33px;').html('Save'),
             host_context,
             'host_context',
@@ -392,22 +392,22 @@ def host_context(req):
         ),
         host_context,
         HEAD(2).html('Host List'),
-        netoper.patch('host_table_context')
+        netops.patch('host_table_context')
     )
 
-@PAGE.VIEW(netoper)
+@PAGE.VIEW(netops)
 def host_table_context(req, mac='', ip=''):
     
     if req.method == 'DELETE':
         ret = delHost(mac, ip)
         if ret: commitHost()
     
-    return netoper.dtable(
+    return netops.dtable(
         DTABLE('Name', 'Model', 'Serial', 'MAC Address', 'IP Address', ' '),
         'host_table'
     )
 
-@PAGE.TABLE(netoper)
+@PAGE.TABLE(netops)
 def host_table(req, res):
     for host in Host.list():
         res.record(host.name,
@@ -415,7 +415,7 @@ def host_table(req, res):
                    host.serial,
                    host.mac,
                    host.ip,
-                   netoper.signal(
+                   netops.signal(
                        ICON('remove'),
                        'host_table_context',
                        'DELETE', host.mac, host.ip,
