@@ -8,7 +8,7 @@ import os
 import re
 import pygics
 import ipaddress
-import grammar 
+import grammar
 from bucket import *
 
 class NetOps(pygics.__PYGICS__):
@@ -70,10 +70,13 @@ class Environment(Model):
         kv = re.match('^\s*(?P<domain>[\w\d\-]+)\s*$', domain)
         domain = kv.group('domain').lower() if kv != None else ''
         network, prefix = grammar.Network.isCIDR(cidr)
-        if network and prefix: cidr = network + '/' + prefix
-        else: cidr = None
-        _ia_net = ipaddress.IPv4Network(unicode(cidr))
-        netmask = _ia_net.with_netmask.split('/')[1]
+        if network and prefix:
+            cidr = network + '/' + prefix
+            _ia_net = ipaddress.IPv4Network(unicode(cidr))
+            netmask = _ia_net.with_netmask.split('/')[1]
+        else:
+            cidr = None
+            netmask = None
         gateway = grammar.Network.isIP(gateway)
         dns_int = grammar.Network.isIP(dns_int)
         dns_ext = grammar.Network.isIP(dns_ext)
@@ -86,17 +89,32 @@ class Environment(Model):
                 for sr in StaticRange.list(): sr.delete()
                 for host in Host.list(): host.delete()
                 ips = [str(ip) for ip in _ia_net]
-                print ips
                 if re.search('^\d+\.\d+\.\d+\.0$', ips[0]): ips.pop(0)
-                elif re.search('^\d+\.\d+\.\d+\.255$', ips[-1]): ips.pop(-1)
+                if re.search('^\d+\.\d+\.\d+\.255$', ips[-1]): ips.pop(-1)
                 for ip in ips:
                     Host(ip=ip, ip_num=int(ipaddress.ip_address(unicode(ip)))).create()
             env.cidr = cidr
         if network: env.network = network
         if prefix: env.prefix = prefix
         if netmask: env.netmask = netmask
-        if gateway: env.gateway = gateway
-        if dns_int: env.dns_int = dns_int
+        if gateway:
+            gw = Host.one(Host.ip==gateway)
+            if gw:
+                gw.name = 'Gateway'
+                gw.range_type = 'environment'
+                gw.range_name = 'Environment'
+                gw.range_id = -1
+                gw.update()
+                env.gateway = gateway
+        if dns_int:
+            di = Host.one(Host.ip==dns_int)
+            if di:
+                di.name = 'Internal DNS'
+                di.range_type = 'environment'
+                di.range_name = 'Environment'
+                di.range_id = -1
+                di.update()
+                env.dns_int = dns_int
         if dns_ext: env.dns_ext = dns_ext
         env.update()
         
@@ -112,14 +130,12 @@ class Environment(Model):
             for dr in drs:
                 if env.netmask != '' and dr.stt != '' and dr.end != '' and dr.lease_num != '' and dr.lease_tag != '':
                     fd.write('dhcp-range=%s,%s,%s,%s%s\n' % (dr.stt, dr.end, env.netmask, dr.lease_num, dr.lease_tag[0]))
-        with open(no.h_dhcp, 'w') as fd:
+        with open(no.h_dhcp, 'w') as h_dhcp, open(no.h_dns, 'w') as h_dns:
             for host in hosts:
                 if host.range_type == 'static' and host.mac != '' and host.ip != '':
-                    fd.write('dhcp-host=%s,%s\n' % (host.mac, host.ip))
-        with open(no.h_dns, 'w') as fd:
-            for host in hosts:
+                    h_dhcp.write('dhcp-host=%s,%s\n' % (host.mac, host.ip))
                 if env.domain != '' and host.model != '' and host.name != '' and host.ip != '':
-                    fd.write('%s\t%s.%s.%s\n' % (host.ip, host.name, host.model, env.domain))
+                    h_dns.write('%s\t%s.%s.%s\n' % (host.ip, host.name.replace(' ', '-'), host.range_name.replace(' ', '-'), env.domain))
         no.reload()
         return env
 
@@ -157,44 +173,42 @@ class DynamicRange(Model):
         lease_tag = lease_tag if lease_tag in _range_ip_lease_tag else None
         
         if name and stt and end and lease_num and lease_tag:
-            if DynamicRange.one(DynamicRange.name==name): return None
-            if StaticRange.one(StaticRange.name==name): return None
+            if DynamicRange.one(DynamicRange.name==name): raise Exception('name %s is already exist' % name)
+            if StaticRange.one(StaticRange.name==name): raise Exception('name %s is already exist' % name)
             stt_num = int(ipaddress.ip_address(unicode(stt)))
             end_num = int(ipaddress.ip_address(unicode(end)))
             hosts = Host.list(Host.ip_num>=stt_num, Host.ip_num<=end_num)
+            if not hosts.count(): raise Exception('unbound IP address')
             for host in hosts:
-                if host.range_id != 0: return None
-            _dr = DynamicRange(name, stt, end, stt_num, end_num, lease_num, lease_tag, desc).create()
+                if host.range_id != 0: raise Exception('already mapped IP range')
+            dr = DynamicRange(name, stt, end, stt_num, end_num, lease_num, lease_tag, desc).create()
             for host in hosts:
                 host.range_type = 'dynamic'
                 host.range_name = name
-                host.range_id = _dr.id
+                host.range_id = dr.id
                 host.update()
-            
             env = Environment.one()
             drs = DynamicRange.list()
             with open(no.r_dhcp, 'w') as fd:
-                for dr in drs:
-                    if env.netmask != '' and dr.stt != '' and dr.end != '' and dr.lease_num != '' and dr.lease_tag != '':
-                        fd.write('dhcp-range=%s,%s,%s,%s%s\n' % (dr.stt, dr.end, env.netmask, dr.lease_num, dr.lease_tag[0]))
+                for _dr in drs:
+                    if env.netmask != '' and _dr.stt != '' and _dr.end != '' and _dr.lease_num != '' and _dr.lease_tag != '':
+                        fd.write('dhcp-range=%s,%s,%s,%s%s\n' % (_dr.stt, _dr.end, env.netmask, _dr.lease_num, _dr.lease_tag[0]))
             no.reload()
-            return _dr
-        return None
+            return dr
+        raise Exception('incorrect parameters')
     
     @classmethod
-    def remove(cls, id):
-        dr = DynamicRange.get(id)
+    def remove(cls, dr_id):
+        if isinstance(dr_id, str): dr_id = int(dr_id) 
+        dr = DynamicRange.get(dr_id)
         if dr:
             hosts = Host.list(Host.ip_num>=dr.stt_num, Host.ip_num<=dr.end_num)
-            for host in hosts:
-                if host.range_type != 'dynamic' or host.range_id != dr.id: return False
             for host in hosts:
                 host.range_type = ''
                 host.range_name = ''
                 host.range_id = 0
                 host.update()
             dr.delete()
-            
             env = Environment.one()
             drs = DynamicRange.list()
             with open(no.r_dhcp, 'w') as fd:
@@ -203,7 +217,7 @@ class DynamicRange(Model):
                         fd.write('dhcp-range=%s,%s,%s,%s%s\n' % (dr.stt, dr.end, env.netmask, dr.lease_num, dr.lease_tag[0]))
             no.reload()
             return True
-        return False
+        raise Exception('incorrect dynamic range id')
 
 @Bucket.register(bk)
 class StaticRange(Model):
@@ -216,12 +230,12 @@ class StaticRange(Model):
     desc = Column(Text)
     
     def __init__(self, name='', stt='', end='', stt_num=0, end_num=0, desc=''):
-        self.name = ''
-        self.stt = ''
-        self.end = ''
+        self.name = name
+        self.stt = stt
+        self.end = end
         self.stt_num = stt_num
         self.end_num = end_num
-        self.desc = ''
+        self.desc = desc
     
     @classmethod
     def add(cls, name='', stt='', end='', desc=''):
@@ -231,13 +245,14 @@ class StaticRange(Model):
         end = grammar.Network.isIP(end)
         
         if name and stt and end:
-            if DynamicRange.one(DynamicRange.name==name): return None
-            if StaticRange.one(StaticRange.name==name): return None
+            if DynamicRange.one(DynamicRange.name==name): raise Exception('name %s is already exist' % name)
+            if StaticRange.one(StaticRange.name==name): raise Exception('name %s is already exist' % name)
             stt_num = int(ipaddress.ip_address(unicode(stt)))
             end_num = int(ipaddress.ip_address(unicode(end)))
             hosts = Host.list(Host.ip_num>=stt_num, Host.ip_num<=end_num)
+            if not hosts.count(): raise Exception('unbound IP address')
             for host in hosts:
-                if host.range_id != 0: return None
+                if host.range_id != 0: raise Exception('already mapped IP range')
             sr = StaticRange(name, stt, end, stt_num, end_num, desc).create()
             for host in hosts:
                 host.range_type = 'static'
@@ -245,34 +260,37 @@ class StaticRange(Model):
                 host.range_id = sr.id
                 host.update()
             return sr
-        return None
+        raise Exception('incorrect parameters')
     
     @classmethod
-    def remove(cls, id):
+    def remove(cls, sr_id):
+        if isinstance(sr_id, str): sr_id = int(sr_id)
         sr = StaticRange.get(id)
         if sr:
             hosts = Host.list(Host.ip_num>=sr.stt_num, Host.ip_num<=sr.end_num)
             for host in hosts:
-                if host.range_type != 'static' or host.range_id != sr.id: return False
-            for host in hosts:
+                host.name = ''
+                host.mac = ''
+                host.model = 'Unknown'
+                host.serial = ''
                 host.range_type = ''
                 host.range_name = ''
                 host.range_id = 0
+                host.desc = ''
                 host.update()
             sr.delete()
             
             env = Environment.one()
-            with open(no.h_dhcp, 'w') as fd:
+            hosts = Host.list()
+            with open(no.h_dhcp, 'w') as h_dhcp, open(no.h_dns, 'w') as h_dns:
                 for host in hosts:
                     if host.range_type == 'static' and host.mac != '' and host.ip != '':
-                        fd.write('dhcp-host=%s,%s\n' % (host.mac, host.ip))
-            with open(no.h_dns, 'w') as fd:
-                for host in hosts:
+                        h_dhcp.write('dhcp-host=%s,%s\n' % (host.mac, host.ip))
                     if env.domain != '' and host.model != '' and host.name != '' and host.ip != '':
-                        fd.write('%s\t%s.%s.%s\n' % (host.ip, host.name, host.model, env.domain))
+                        h_dns.write('%s\t%s.%s.%s\n' % (host.ip, host.name.replace(' ', '-'), host.range_name.replace(' ', '-'), env.domain))
             no.reload()
             return True
-        return False
+        raise Exception('incorrect static range id')
 
 _host_models = ['Unknown', 'Nexus', 'Catalyst', 'ASA', 'UCS', 'Host', 'VM', 'Node']
 @Bucket.register(bk)
@@ -302,62 +320,69 @@ class Host(Model):
         self.desc = desc
         
     @classmethod
-    def add(cls, name='', mac='', ip='', model='', serial='', desc=''):
+    def set(cls, host_id, name='', mac='', model='', serial='', desc=''):
+        if isinstance(host_id, str): host_id = int(host_id)
         kv = re.match('^\s*(?P<name>[\w\d\-]+)\s*$', name)
         name = kv.group('name').lower() if kv != None else ''
         mac = grammar.Network.isMAC(mac)
-        ip = grammar.Network.isIP(ip)
         model = model if model in _host_models else 'Unknown'
         kv = re.match('^\s*(?P<serial>[\w\d\-]+)\s*$', serial)
         serial = kv.group('serial') if kv != None else ''
         
-        if name and mac and ip:
-            if Host.one(Host.name==name): return None
-            if Host.one(Host.mac==mac): return None
-            _host = Host.one(Host.ip==ip)
-            if _host.mac != '' or _host.range_type != 'static': return None
-            _host.name = name
-            _host.mac = mac
-            _host.model = model
-            _host.serial = serial
-            _host.desc = desc
-            _host.update()
-            
+        if Host.one(Host.name==name): raise Exception('name %s is already exist' % name)
+        _duple_mac_host = Host.one(Host.mac==mac)
+        if _duple_mac_host and _duple_mac_host.id != int(host_id): raise Exception('mac %s is duplicated' % mac)
+        host = Host.get(host_id)
+        if host.range_type != 'static': raise Exception('range type is not static')
+        host.name = name
+        host.mac = mac
+        host.model = model
+        host.serial = serial
+        host.desc = desc
+        host.update()
+        
+        if name or mac:
             env = Environment.one()
             hosts = Host.list()
             with open(no.h_dhcp, 'w') as fd:
-                for host in hosts:
-                    if host.range_type == 'static' and host.mac != '' and host.ip != '':
-                        fd.write('dhcp-host=%s,%s\n' % (host.mac, host.ip))
+                for _host in hosts:
+                    if _host.range_type == 'static' and _host.mac != '' and _host.ip != '':
+                        fd.write('dhcp-host=%s,%s\n' % (_host.mac, _host.ip))
             with open(no.h_dns, 'w') as fd:
-                for host in hosts:
-                    if env.domain != '' and host.model != '' and host.name != '' and host.ip != '':
-                        fd.write('%s\t%s.%s.%s\n' % (host.ip, host.name, host.model, env.domain))
+                for _host in hosts:
+                    if env.domain != '' and _host.model != '' and _host.name != '' and _host.ip != '':
+                        fd.write('%s\t%s.%s.%s\n' % (_host.ip, _host.name.replace(' ', '-'), _host.range_name.replace(' ', '-'), env.domain))
             no.reload()
-            return _host
-        return None
+            return host
+        return host
     
     @classmethod
-    def remove(cls, id):
-        host = Host.get(id)
-        if host:
-            host.name = ''
-            host.mac = ''
-            host.model = 'Unknown'
-            host.serial = ''
-            host.desc = ''
-            host.update()
-            
-            env = Environment.one()
-            hosts = Host.list()
-            with open(no.h_dhcp, 'w') as fd:
-                for host in hosts:
-                    if host.range_type == 'static' and host.mac != '' and host.ip != '':
-                        fd.write('dhcp-host=%s,%s\n' % (host.mac, host.ip))
-            with open(no.h_dns, 'w') as fd:
-                for host in hosts:
-                    if env.domain != '' and host.model != '' and host.name != '' and host.ip != '':
-                        fd.write('%s\t%s.%s.%s\n' % (host.ip, host.name, host.model, env.domain))
-            no.reload()
-            return True
-        return False
+    def clear(cls, host_id):
+        if isinstance(host_id, str): host_id = int(host_id)
+        host = Host.get(host_id)
+        if host.range_type != 'static': raise Exeption('range type is not static')
+        host.name = ''
+        host.mac = ''
+        host.model = 'Unknown'
+        host.serial = ''
+        host.desc = ''
+        host.update()
+        
+        env = Environment.one()
+        hosts = Host.list()
+        with open(no.h_dhcp, 'w') as fd:
+            for _host in hosts:
+                if _host.range_type == 'static' and _host.mac != '' and _host.ip != '':
+                    fd.write('dhcp-host=%s,%s\n' % (_host.mac, _host.ip))
+        with open(no.h_dns, 'w') as fd:
+            for _host in hosts:
+                if env.domain != '' and _host.model != '' and _host.name != '' and _host.ip != '':
+                    fd.write('%s\t%s.%s.%s\n' % (_host.ip, _host.name.replace(' ', '-'), _host.range_name.replace(' ', '-'), env.domain))
+        no.reload()
+        return host
+
+#===============================================================================
+# Init
+#===============================================================================
+if not Environment.one():
+    Environment().create()

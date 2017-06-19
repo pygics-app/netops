@@ -10,12 +10,7 @@ from page import *
 #===============================================================================
 # Internal APIs
 #===============================================================================
-from model import Environment, DynamicRange, StaticRange, Host
-
-#===============================================================================
-# Init
-#===============================================================================
-print Environment().create()
+from model import Environment, DynamicRange, StaticRange, Host, _host_models
 
 #===============================================================================
 # REST APIs
@@ -140,8 +135,8 @@ def api_getHost(req, id=None):
     return ret
 
 @pygics.api('POST', '/api/host')
-def api_addHost(req):
-    host = Host.add(**req.data)
+def api_setHost(req):
+    host = Host.set(**req.data)
     if host:
         return {'id' : host.id,
                 'name' : host.name,
@@ -153,28 +148,133 @@ def api_addHost(req):
                 'desc' : host.desc}
     return None
 
-@pygics.api('DELETE', '/api/host')
-def api_delHost(req, id):
-    return Host.remove(id)
-
 #===============================================================================
 # Page
 #===============================================================================
 netops = PAGE(resource='resource', template=PAGE.TEMPLATE.SIMPLE_DK)
+netops.addCategory('Settings', 'dashboard')
 
 @PAGE.MAIN(netops, 'NetOps')
-def dnsmasq_main_page(req):
-    return 'DHCP & DNS'
+def netops_main_page(req):
+    
+    return DIV().html(
+        HEAD(2).html('Status'),
+        netops.patch('netops_main_status_view'),
+        HEAD(2).html('Register'),
+        netops.patch('netops_main_context_view')
+    )
+    
+@PAGE.VIEW(netops)
+def netops_main_status_view(req):
+    
+    host_count = Host.count()
+    
+    bar = DIV(STYLE='width:100%;height:20px;')
+    
+    hosts = Host.list()
+    
+    for host in hosts:
+        if host.range_type == '':
+            bar.html(
+                DIV(TITLE='Reserved\n%s' % (host.ip),
+                    STYLE='float:left;width:calc(100%%/%d);height:20px;background-color:#888;' % host_count)
+            )
+        elif host.range_type == 'dynamic':
+            bar.html(
+                DIV(TITLE='Dynamic DHCP\n%s\n%s' % (host.range_name, host.ip),
+                    STYLE='float:left;width:calc(100%%/%d);height:20px;background-color:#0f0;' % host_count)
+            )
+        elif host.range_type == 'static':
+            bar.html(
+                DIV(TITLE='Static DHCP\n%s\n%s\n%s' % (host.range_name, host.ip, host.name),
+                    STYLE='float:left;width:calc(100%%/%d);height:20px;background-color:#00f;' % host_count)
+            )
+        elif host.range_type == 'environment':
+            bar.html(
+                DIV(TITLE='Environment\n%s\n%s' % (host.ip, host.name),
+                    STYLE='float:left;width:calc(100%%/%d);height:20px;background-color:#f00;' % host_count)
+            )
+    
+    return bar
 
-@PAGE.MENU(netops, 'Environment', 'id-card')
+@PAGE.VIEW(netops)
+def netops_main_context_view(req, host_id=None):
+
+    if req.method == 'POST':
+        Host.set(**req.data)
+    elif req.method == 'DELETE':
+        Host.clear(host_id)
+    
+    return netops.dtable(
+        DTABLE('Name',
+               'IP',
+               'MAC',
+               'Model',
+               'Serial',
+               'Range',
+               'Description',
+               'Action'),
+        'netops_main_context_table'
+    )
+
+@PAGE.DTABLE(netops)
+def netops_main_context_table(req, res):
+    total = Host.count()
+    res.total(total)
+    if res.end == 0: res.end = total
+    if res.search != '':
+        hosts = Host.list(Host.ip.like('%%%s%%' % res.search))
+        res.filtered(hosts.count())
+    else: hosts = Host.list()
+    hosts = hosts[res.start:res.end]
+    for host in hosts:
+        if host.range_type == 'static':
+            host_id = INPUT.HIDDEN('host_id', str(host.id))
+            name = INPUT.TEXT('name', host.name, CLASS='page-input-in-table')
+            mac = INPUT.TEXT('mac', host.mac, CLASS='page-input-in-table')
+            _model_list = [m for m in _host_models]
+            _model_list.remove(host.model)
+            _model_list.insert(0, host.model)
+            model = INPUT.SELECT('model', *_model_list, CLASS='page-input-in-table')
+            serial = INPUT.TEXT('serial', host.serial, CLASS='page-input-in-table')
+            desc = INPUT.TEXT('desc', host.desc, CLASS='page-input-in-table')
+            submit = DIV(STYLE='width:100%;text-align:center;').html(
+                netops.context(
+                    BUTTON(CLASS='btn-primary btn-xs', STYLE='margin:0px;padding:0px 5px;font-size:11px;').html('Save'),
+                    'netops_main_context_view',
+                    host_id, name, mac, model, serial, desc
+                ),
+                netops.signal(
+                    BUTTON(CLASS='btn-danger btn-xs', STYLE='margin:0px;padding:0px 5px;font-size:11px;').html('Clear'),
+                    'DELETE', 'netops_main_context_view', str(host.id)
+                ),
+                host_id
+            )
+            res.record(name,
+                       host.ip,
+                       mac,
+                       model,
+                       serial,
+                       '%s (%s)' % (host.range_name, host.range_type) if host.range_name != '' else host.range_name,
+                       desc,
+                       submit)
+        else:
+            res.record(host.name,
+                       host.ip,
+                       host.mac,
+                       host.model,
+                       host.serial,
+                       '%s (%s)' % (host.range_name, host.range_type) if host.range_name != '' else host.range_name,
+                       host.desc,
+                       ' ')
+
+@PAGE.MENU(netops, 'Settings>>Environment', 'id-card')
 def environment_setting(req):
     
     if req.method == 'POST':
         Environment.set(**req.data)
     
     env = Environment.one()
-    
-    print env.__dict__
     
     domain = INPUT.TEXT('domain', env.domain)
     cidr = INPUT.TEXT('cidr', env.cidr)
@@ -192,8 +292,7 @@ def environment_setting(req):
                 cidr,
                 gateway,
                 dns_int,
-                dns_ext,
-                
+                dns_ext
             )
         ),
         
@@ -228,114 +327,176 @@ def environment_setting(req):
         INPUT.GROUP().html(
             INPUT.LABEL_TOP('External DNS'),
             dns_ext
-        ),
+        )
     )
 
-# @PAGE.VIEW(netops)
-# def dhcp_range_setting(req):
-#     
-#     if req.method == 'POST':
-#         setDynamicRange(**req.data)
-#         commitDynamicRange()
-#     
-#     rng = getDynamicRange()
-#     
-#     tag_prio = []
-#     for tag in _range_ip_lease_tag: tag_prio.append(tag)
-#     if rng.ip_lease_tag != '':
-#         tag_prio.remove(rng.ip_lease_tag)
-#         tag_prio.insert(0, rng.ip_lease_tag)
-#     
-#     range_context = CONTEXT().TEXT(
-#         'ip_stt', CONTEXT.LABEL_TOP('Range Start'), rng.ip_stt
-#     ).TEXT(
-#         'ip_end', CONTEXT.LABEL_TOP('Range End'), rng.ip_end
-#     ).TEXT(
-#         'ip_lease_num', CONTEXT.LABEL_TOP('Lease Time'), rng.ip_lease_num,
-#         STYLE='width:70%;float:left;padding-right:5px;'
-#     ).SELECT(
-#         'ip_lease_tag', CONTEXT.LABEL_TOP('', STYLE='width:100%;height:15px;'), *tag_prio,
-#         STYLE='width:30%;float:right;padding-left:5px;'
-#     )
-#         
-#     return DIV().html(
-#         HEAD(2, STYLE='float:left;').html('Dynamic Range'),
-#         netops.context(
-#             BUTTON(CLASS='btn-primary', STYLE='height:33px;').html('Save'),
-#             range_context,
-#             'dhcp_range_setting',
-#             STYLE='float:right;margin:20px 0px 10px 20px;'
-#         ),
-#         range_context,
-#     )
-# 
-# @PAGE.MENU(netops, 'Host', 'id-card')
-# def host_setting(req):
-#     
-#     return DIV().html(
-#         HEAD(1).html('Host Setting'),
-#         netops.patch('host_context'),
-#     )
-# 
-# @PAGE.VIEW(netops)
-# def host_context(req):
-#     
-#     if req.method == 'POST':
-#         host = setHost(**req.data)
-#         if host: commitHost()
-#     
-#     host_context = CONTEXT().TEXT(
-#         'name', CONTEXT.LABEL_TOP('Host Name'),
-#     ).TEXT(
-#         'mac', CONTEXT.LABEL_TOP('MAC Address'),
-#         STYLE='width:50%;float:left;padding-right:5px;'
-#     ).TEXT(
-#         'ip', CONTEXT.LABEL_TOP('IP Address'),
-#         STYLE='width:50%;float:right;padding-left:5px;'
-#     ).SELECT(
-#         'model', CONTEXT.LABEL_TOP('Model'), 'Host', 'Nexus', 'Catalyst', 'ASA', 'UCS', 'VM',
-#         STYLE='width:50%;float:left;padding-right:5px;'
-#     ).TEXT(
-#         'serial', CONTEXT.LABEL_TOP('Serial'), 
-#         STYLE='width:50%;float:right;padding-left:5px;'
-#     )
-# 
-#     return DIV().html(
-#         HEAD(2, STYLE='float:left;').html('Register'),
-#         netops.context(
-#             BUTTON(CLASS='btn-primary', STYLE='height:33px;').html('Save'),
-#             host_context,
-#             'host_context',
-#             STYLE='float:right;margin:20px 0px 10px 10px;'
-#         ),
-#         host_context,
-#         HEAD(2).html('Host List'),
-#         netops.patch('host_table_context')
-#     )
-# 
-# @PAGE.VIEW(netops)
-# def host_table_context(req, mac='', ip=''):
-#     
-#     if req.method == 'DELETE':
-#         ret = delHost(mac, ip)
-#         if ret: commitHost()
-#     
-#     return netops.dtable(
-#         DTABLE('Name', 'Model', 'Serial', 'MAC Address', 'IP Address', ' '),
-#         'host_table'
-#     )
-# 
-# @PAGE.TABLE(netops)
-# def host_table(req, res):
-#     for host in Host.list():
-#         res.record(host.name,
-#                    host.model,
-#                    host.serial,
-#                    host.mac,
-#                    host.ip,
-#                    netops.signal(
-#                        ICON('remove'),
-#                        'host_table_context',
-#                        'DELETE', host.mac, host.ip,
-#                        STYLE='text-align:center;').render()
-#                    )
+@PAGE.MENU(netops, 'Settings>>Dynamic DHCP', 'id-card')
+def dynamic_dhcp_setting(req):
+    
+    name = INPUT.TEXT('name')
+    stt = INPUT.TEXT('stt')
+    end = INPUT.TEXT('end')
+    lease_num = INPUT.TEXT('lease_num')
+    lease_tag = INPUT.SELECT('lease_tag', 'hours', 'minutes', 'seconds')
+    desc = INPUT.TEXT('desc')
+    
+    return DIV().html(
+        HEAD(1, STYLE='float:left;').html('Dynamic DHCP'),
+        DIV(STYLE='float:right;margin:20px 0px 10px 20px;').html(
+            netops.context(
+                BUTTON(CLASS='btn-primary', STYLE='height:39px;').html('Save'),
+                'dynamic_dhcp_table_view',
+                name,
+                stt,
+                end,
+                lease_num,
+                lease_tag,
+                desc
+            )
+        ),
+        INPUT.GROUP().html(
+            INPUT.LABEL_TOP('Name'),
+            name
+        ),
+        ROW().html(
+            COL(6, 'xs').html(
+                INPUT.LABEL_TOP('Range'),
+                INPUT.GROUP().html(
+                    INPUT.LABEL_LEFT('Start'),
+                    stt,
+                    INPUT.LABEL_LEFT('End'),
+                    end
+                )
+            ),
+            COL(6, 'xs').html(
+                INPUT.LABEL_TOP('Lease Time'),
+                INPUT.GROUP().html(
+                    INPUT.LABEL_LEFT('Number'),
+                    lease_num,
+                    INPUT.LABEL_LEFT('Type'),
+                    lease_tag
+                )
+            )
+        ),
+        INPUT.GROUP().html(
+            INPUT.LABEL_TOP('Description'),
+            desc
+        ),
+        netops.patch('dynamic_dhcp_table_view')
+    )
+
+@PAGE.VIEW(netops)
+def dynamic_dhcp_table_view(req, dr_id=None):
+    
+    if req.method == 'POST':
+        DynamicRange.add(**req.data)
+    elif req.method == 'DELETE':
+        DynamicRange.remove(int(dr_id))
+    
+    return netops.dtable(
+        DTABLE('Name',
+               'Range',
+               'Lease Time',
+               'Description',
+               ' '),
+        'dynamic_dhcp_table'
+    )
+
+@PAGE.DTABLE(netops)
+def dynamic_dhcp_table(req, res):
+    total = DynamicRange.count()
+    res.total(total)
+    if res.end == 0: res.end = total
+    if res.search != '':
+        drs = DynamicRange.list(DynamicRange.name.like('%%%s%%' % res.search))
+        res.filtered(drs.count())
+    else: drs = DynamicRange.list()
+    drs = drs[res.start:res.end]
+    for dr in drs:
+        res.record(dr.name,
+                   '%s ~ %s' % (dr.stt, dr.end),
+                   '%s %s' % (dr.lease_num, dr.lease_tag),
+                   dr.desc,
+                   DIV(STYLE='width:100%;text-align:center;').html(
+                       netops.signal(
+                           BUTTON(CLASS='btn-danger btn-xs', STYLE='margin:0px;padding:0px 5px;font-size:11px;').html('Delete'),
+                           'DELETE',
+                           'dynamic_dhcp_table_view', str(dr.id))
+                   )
+        )
+
+@PAGE.MENU(netops, 'Settings>>Static DHCP', 'id-card')
+def static_dhcp_setting(req):
+    
+    name = INPUT.TEXT('name')
+    stt = INPUT.TEXT('stt')
+    end = INPUT.TEXT('end')
+    desc = INPUT.TEXT('desc')
+    
+    return DIV().html(
+        HEAD(1, STYLE='float:left;').html('Static DHCP'),
+        DIV(STYLE='float:right;margin:20px 0px 10px 20px;').html(
+            netops.context(
+                BUTTON(CLASS='btn-primary', STYLE='height:39px;').html('Save'),
+                'static_dhcp_table_view',
+                name,
+                stt,
+                end,
+                desc
+            )
+        ),
+        INPUT.GROUP().html(
+            INPUT.LABEL_TOP('Name'),
+            name
+        ),
+        INPUT.LABEL_TOP('Range'),
+        INPUT.GROUP().html(
+            INPUT.LABEL_LEFT('Start'),
+            stt,
+            INPUT.LABEL_LEFT('End'),
+            end
+        ),
+        INPUT.GROUP().html(
+            INPUT.LABEL_TOP('Description'),
+            desc
+        ),
+        netops.patch('static_dhcp_table_view')
+    )
+
+@PAGE.VIEW(netops)
+def static_dhcp_table_view(req, sr_id=None):
+    
+    if req.method == 'POST':
+        StaticRange.add(**req.data)
+    elif req.method == 'DELETE':
+        StaticRange.remove(int(sr_id))
+    
+    return netops.dtable(
+        DTABLE('Name',
+               'Range',
+               'Description',
+               ' '),
+        'static_dhcp_table'
+    )
+
+@PAGE.DTABLE(netops)
+def static_dhcp_table(req, res):
+    total = StaticRange.count()
+    res.total(total)
+    if res.end == 0: res.end = total
+    if res.search != '':
+        srs = StaticRange.list(StaticRange.name.like('%%%s%%' % res.search))
+        res.filtered(srs.count())
+    else: srs = StaticRange.list()
+    srs = srs[res.start:res.end]
+    for sr in srs:
+        res.record(sr.name,
+                   '%s ~ %s' % (sr.stt, sr.end),
+                   sr.desc,
+                   DIV(STYLE='width:100%;text-align:center;').html(
+                       netops.signal(
+                           BUTTON(CLASS='btn-danger btn-xs', STYLE='margin:0px;padding:0px 5px;font-size:11px;').html('Delete'),
+                           'DELETE',
+                           'static_dhcp_table_view', str(sr.id))
+                   )
+        )
