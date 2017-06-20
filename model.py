@@ -43,6 +43,8 @@ class NetOps(pygics.__PYGICS__):
 no = NetOps(PWD() + '/native').reload()
 bk = FileBucket()
 
+netops_lock = pygics.Lock()
+
 @Bucket.register(bk)
 class Environment(Model):
     
@@ -81,62 +83,69 @@ class Environment(Model):
         dns_int = grammar.Network.isIP(dns_int)
         dns_ext = grammar.Network.isIP(dns_ext)
         
-        env = Environment.one()
-        if domain: env.domain = domain
-        if cidr:
-            if env.cidr != cidr:
-                for dr in DynamicRange.list(): dr.delete()
-                for sr in StaticRange.list(): sr.delete()
-                for host in Host.list(): host.delete()
-                ips = [str(ip) for ip in _ia_net]
-                if re.search('^\d+\.\d+\.\d+\.0$', ips[0]): ips.pop(0)
-                if re.search('^\d+\.\d+\.\d+\.255$', ips[-1]): ips.pop(-1)
-                for ip in ips:
-                    Host(ip=ip, ip_num=int(ipaddress.ip_address(unicode(ip)))).create()
-            env.cidr = cidr
-        if network: env.network = network
-        if prefix: env.prefix = prefix
-        if netmask: env.netmask = netmask
-        if gateway:
-            gw = Host.one(Host.ip==gateway)
-            if gw:
-                gw.name = 'Gateway'
-                gw.range_type = 'environment'
-                gw.range_name = 'Environment'
-                gw.range_id = -1
-                gw.update()
-                env.gateway = gateway
-        if dns_int:
-            di = Host.one(Host.ip==dns_int)
-            if di:
-                di.name = 'Internal DNS'
-                di.range_type = 'environment'
-                di.range_name = 'Environment'
-                di.range_id = -1
-                di.update()
-                env.dns_int = dns_int
-        if dns_ext: env.dns_ext = dns_ext
-        env.update()
+        netops_lock.acquire()
+        try:
+            env = Environment.one()
+            if domain: env.domain = domain
+            if cidr:
+                if env.cidr != cidr:
+                    for dr in DynamicRange.list(): dr.delete()
+                    for sr in StaticRange.list(): sr.delete()
+                    for host in Host.list(): host.delete()
+                    ips = [str(ip) for ip in _ia_net]
+                    if re.search('^\d+\.\d+\.\d+\.0$', ips[0]): ips.pop(0)
+                    if re.search('^\d+\.\d+\.\d+\.255$', ips[-1]): ips.pop(-1)
+                    for ip in ips:
+                        Host(ip=ip, ip_num=int(ipaddress.ip_address(unicode(ip)))).create()
+                env.cidr = cidr
+            if network: env.network = network
+            if prefix: env.prefix = prefix
+            if netmask: env.netmask = netmask
+            if gateway:
+                gw = Host.one(Host.ip==gateway)
+                if gw:
+                    gw.name = 'Gateway'
+                    gw.range_type = 'environment'
+                    gw.range_name = 'Environment'
+                    gw.range_id = -1
+                    gw.update()
+                    env.gateway = gateway
+            if dns_int:
+                di = Host.one(Host.ip==dns_int)
+                if di:
+                    di.name = 'Internal DNS'
+                    di.range_type = 'environment'
+                    di.range_name = 'Environment'
+                    di.range_id = -1
+                    di.update()
+                    env.dns_int = dns_int
+            if dns_ext: env.dns_ext = dns_ext
+            
+            env.update()
+            drs = DynamicRange.list()
+            hosts = Host.list()
+            with open(no.conf, 'w') as fd:
+                if env.netmask != '': fd.write('dhcp-option=1,%s\n' % env.netmask)
+                if env.gateway != '': fd.write('dhcp-option=3,%s\n' % env.gateway)
+                if env.dns_int != '': fd.write('dhcp-option=6,%s\n' % env.dns_int)
+            with open(no.r_dns, 'w') as fd:
+                if env.dns_ext != '': fd.write('nameserver\t%s\n' % env.dns_ext)
+            with open(no.r_dhcp, 'w') as fd:
+                for dr in drs:
+                    if env.netmask != '' and dr.stt != '' and dr.end != '' and dr.lease_num != '' and dr.lease_tag != '':
+                        fd.write('dhcp-range=%s,%s,%s,%s%s\n' % (dr.stt, dr.end, env.netmask, dr.lease_num, dr.lease_tag[0]))
+            with open(no.h_dhcp, 'w') as h_dhcp, open(no.h_dns, 'w') as h_dns:
+                for host in hosts:
+                    if host.range_type == 'static' and host.mac != '' and host.ip != '':
+                        h_dhcp.write('dhcp-host=%s,%s\n' % (host.mac, host.ip))
+                    if env.domain != '' and host.range_name != '' and host.name != '' and host.ip != '':
+                        h_dns.write('%s\t%s.%s.%s\n' % (host.ip, host.name.replace(' ', '-'), host.range_name.replace(' ', '-'), env.domain))
+            no.reload()
+        except Exception as e:
+            netops_lock.release()
+            raise e
+        netops_lock.release()
         
-        drs = DynamicRange.list()
-        hosts = Host.list()
-        with open(no.conf, 'w') as fd:
-            if env.netmask != '': fd.write('dhcp-option=1,%s\n' % env.netmask)
-            if env.gateway != '': fd.write('dhcp-option=3,%s\n' % env.gateway)
-            if env.dns_int != '': fd.write('dhcp-option=6,%s\n' % env.dns_int)
-        with open(no.r_dns, 'w') as fd:
-            if env.dns_ext != '': fd.write('nameserver\t%s\n' % env.dns_ext)
-        with open(no.r_dhcp, 'w') as fd:
-            for dr in drs:
-                if env.netmask != '' and dr.stt != '' and dr.end != '' and dr.lease_num != '' and dr.lease_tag != '':
-                    fd.write('dhcp-range=%s,%s,%s,%s%s\n' % (dr.stt, dr.end, env.netmask, dr.lease_num, dr.lease_tag[0]))
-        with open(no.h_dhcp, 'w') as h_dhcp, open(no.h_dns, 'w') as h_dns:
-            for host in hosts:
-                if host.range_type == 'static' and host.mac != '' and host.ip != '':
-                    h_dhcp.write('dhcp-host=%s,%s\n' % (host.mac, host.ip))
-                if env.domain != '' and host.range_name != '' and host.name != '' and host.ip != '':
-                    h_dns.write('%s\t%s.%s.%s\n' % (host.ip, host.name.replace(' ', '-'), host.range_name.replace(' ', '-'), env.domain))
-        no.reload()
         return env
 
 _range_ip_lease_tag = ['seconds', 'minutes', 'hours']
@@ -173,49 +182,67 @@ class DynamicRange(Model):
         lease_tag = lease_tag if lease_tag in _range_ip_lease_tag else None
         
         if name and stt and end and lease_num and lease_tag:
-            if DynamicRange.one(DynamicRange.name==name): raise Exception('name %s is already exist' % name)
-            if StaticRange.one(StaticRange.name==name): raise Exception('name %s is already exist' % name)
-            stt_num = int(ipaddress.ip_address(unicode(stt)))
-            end_num = int(ipaddress.ip_address(unicode(end)))
-            hosts = Host.list(Host.ip_num>=stt_num, Host.ip_num<=end_num)
-            if not hosts.count(): raise Exception('unbound IP address')
-            for host in hosts:
-                if host.range_id != 0: raise Exception('already mapped IP range')
-            dr = DynamicRange(name, stt, end, stt_num, end_num, lease_num, lease_tag, desc).create()
-            for host in hosts:
-                host.range_type = 'dynamic'
-                host.range_name = name
-                host.range_id = dr.id
-                host.update()
-            env = Environment.one()
-            drs = DynamicRange.list()
-            with open(no.r_dhcp, 'w') as fd:
-                for _dr in drs:
-                    if env.netmask != '' and _dr.stt != '' and _dr.end != '' and _dr.lease_num != '' and _dr.lease_tag != '':
-                        fd.write('dhcp-range=%s,%s,%s,%s%s\n' % (_dr.stt, _dr.end, env.netmask, _dr.lease_num, _dr.lease_tag[0]))
-            no.reload()
+            
+            netops_lock.acquire()
+            try:
+                if DynamicRange.one(DynamicRange.name==name): raise Exception('name %s is already exist' % name)
+                if StaticRange.one(StaticRange.name==name): raise Exception('name %s is already exist' % name)
+                stt_num = int(ipaddress.ip_address(unicode(stt)))
+                end_num = int(ipaddress.ip_address(unicode(end)))
+                hosts = Host.list(Host.ip_num>=stt_num, Host.ip_num<=end_num)
+                if not hosts.count(): raise Exception('unbound IP address')
+                for host in hosts:
+                    if host.range_id != 0: raise Exception('already exist mapped IP in range')
+                dr = DynamicRange(name, stt, end, stt_num, end_num, lease_num, lease_tag, desc).create()
+                for host in hosts:
+                    host.range_type = 'dynamic'
+                    host.range_name = name
+                    host.range_id = dr.id
+                    host.update()
+                
+                env = Environment.one()
+                drs = DynamicRange.list()
+                with open(no.r_dhcp, 'w') as fd:
+                    for _dr in drs:
+                        if env.netmask != '' and _dr.stt != '' and _dr.end != '' and _dr.lease_num != '' and _dr.lease_tag != '':
+                            fd.write('dhcp-range=%s,%s,%s,%s%s\n' % (_dr.stt, _dr.end, env.netmask, _dr.lease_num, _dr.lease_tag[0]))
+                no.reload()
+            except Exception as e:
+                netops_lock.release()
+                raise e
+            netops_lock.release()
+            
             return dr
-        raise Exception('incorrect parameters')
+        raise Exception('incomplete parameters')
     
     @classmethod
     def remove(cls, dr_id):
         if isinstance(dr_id, str): dr_id = int(dr_id) 
         dr = DynamicRange.get(dr_id)
         if dr:
-            hosts = Host.list(Host.ip_num>=dr.stt_num, Host.ip_num<=dr.end_num)
-            for host in hosts:
-                host.range_type = ''
-                host.range_name = ''
-                host.range_id = 0
-                host.update()
-            dr.delete()
-            env = Environment.one()
-            drs = DynamicRange.list()
-            with open(no.r_dhcp, 'w') as fd:
-                for dr in drs:
-                    if env.netmask != '' and dr.stt != '' and dr.end != '' and dr.lease_num != '' and dr.lease_tag != '':
-                        fd.write('dhcp-range=%s,%s,%s,%s%s\n' % (dr.stt, dr.end, env.netmask, dr.lease_num, dr.lease_tag[0]))
-            no.reload()
+            
+            netops_lock.acquire()
+            try:
+                hosts = Host.list(Host.ip_num>=dr.stt_num, Host.ip_num<=dr.end_num)
+                for host in hosts:
+                    host.range_type = ''
+                    host.range_name = ''
+                    host.range_id = 0
+                    host.update()
+                dr.delete()
+                
+                env = Environment.one()
+                drs = DynamicRange.list()
+                with open(no.r_dhcp, 'w') as fd:
+                    for dr in drs:
+                        if env.netmask != '' and dr.stt != '' and dr.end != '' and dr.lease_num != '' and dr.lease_tag != '':
+                            fd.write('dhcp-range=%s,%s,%s,%s%s\n' % (dr.stt, dr.end, env.netmask, dr.lease_num, dr.lease_tag[0]))
+                no.reload()
+            except Exception as e:
+                netops_lock.release()
+                raise e
+            netops_lock.release()
+            
             return True
         raise Exception('incorrect dynamic range id')
 
@@ -245,50 +272,66 @@ class StaticRange(Model):
         end = grammar.Network.isIP(end)
         
         if name and stt and end:
-            if DynamicRange.one(DynamicRange.name==name): raise Exception('name %s is already exist' % name)
-            if StaticRange.one(StaticRange.name==name): raise Exception('name %s is already exist' % name)
-            stt_num = int(ipaddress.ip_address(unicode(stt)))
-            end_num = int(ipaddress.ip_address(unicode(end)))
-            hosts = Host.list(Host.ip_num>=stt_num, Host.ip_num<=end_num)
-            if not hosts.count(): raise Exception('unbound IP address')
-            for host in hosts:
-                if host.range_id != 0: raise Exception('already mapped IP range')
-            sr = StaticRange(name, stt, end, stt_num, end_num, desc).create()
-            for host in hosts:
-                host.range_type = 'static'
-                host.range_name = name
-                host.range_id = sr.id
-                host.update()
+            
+            netops_lock.acquire()
+            try:
+                if DynamicRange.one(DynamicRange.name==name): raise Exception('name %s is already exist' % name)
+                if StaticRange.one(StaticRange.name==name): raise Exception('name %s is already exist' % name)
+                stt_num = int(ipaddress.ip_address(unicode(stt)))
+                end_num = int(ipaddress.ip_address(unicode(end)))
+                hosts = Host.list(Host.ip_num>=stt_num, Host.ip_num<=end_num)
+                if not hosts.count(): raise Exception('unbound IP address')
+                for host in hosts:
+                    if host.range_id != 0: raise Exception('already exist mapped IP in range')
+                sr = StaticRange(name, stt, end, stt_num, end_num, desc).create()
+                for host in hosts:
+                    host.range_type = 'static'
+                    host.range_name = name
+                    host.range_id = sr.id
+                    host.update()
+            except Exception as e:
+                netops_lock.release()
+                raise e
+            netops_lock.release()
+            
             return sr
-        raise Exception('incorrect parameters')
+        raise Exception('incomplete parameters')
     
     @classmethod
     def remove(cls, sr_id):
         if isinstance(sr_id, str): sr_id = int(sr_id)
         sr = StaticRange.get(id)
         if sr:
-            hosts = Host.list(Host.ip_num>=sr.stt_num, Host.ip_num<=sr.end_num)
-            for host in hosts:
-                host.name = ''
-                host.mac = ''
-                host.model = 'Unknown'
-                host.serial = ''
-                host.range_type = ''
-                host.range_name = ''
-                host.range_id = 0
-                host.desc = ''
-                host.update()
-            sr.delete()
             
-            env = Environment.one()
-            hosts = Host.list()
-            with open(no.h_dhcp, 'w') as h_dhcp, open(no.h_dns, 'w') as h_dns:
-                for _host in hosts:
-                    if _host.range_type == 'static' and _host.mac != '' and _host.ip != '':
-                        h_dhcp.write('dhcp-host=%s,%s\n' % (_host.mac, _host.ip))
-                    if env.domain != '' and _host.range_name != '' and _host.name != '' and _host.ip != '':
-                        h_dns.write('%s\t%s.%s.%s\n' % (_host.ip, _host.name.replace(' ', '-'), _host.range_name.replace(' ', '-'), env.domain))
-            no.reload()
+            netops_lock.acquire()
+            try:
+                hosts = Host.list(Host.ip_num>=sr.stt_num, Host.ip_num<=sr.end_num)
+                for host in hosts:
+                    host.name = ''
+                    host.mac = ''
+                    host.model = 'Unknown'
+                    host.serial = ''
+                    host.range_type = ''
+                    host.range_name = ''
+                    host.range_id = 0
+                    host.desc = ''
+                    host.update()
+                sr.delete()
+                
+                env = Environment.one()
+                hosts = Host.list()
+                with open(no.h_dhcp, 'w') as h_dhcp, open(no.h_dns, 'w') as h_dns:
+                    for _host in hosts:
+                        if _host.range_type == 'static' and _host.mac != '' and _host.ip != '':
+                            h_dhcp.write('dhcp-host=%s,%s\n' % (_host.mac, _host.ip))
+                        if env.domain != '' and _host.range_name != '' and _host.name != '' and _host.ip != '':
+                            h_dns.write('%s\t%s.%s.%s\n' % (_host.ip, _host.name.replace(' ', '-'), _host.range_name.replace(' ', '-'), env.domain))
+                no.reload()
+            except Exception as e:
+                netops_lock.release()
+                raise e
+            netops_lock.release()
+            
             return True
         raise Exception('incorrect static range id')
 
@@ -329,29 +372,35 @@ class Host(Model):
         kv = re.match('^\s*(?P<serial>[\w\d\-]+)\s*$', serial)
         serial = kv.group('serial') if kv != None else ''
         
-        if Host.one(Host.name==name): raise Exception('name %s is already exist' % name)
-        _duple_mac_host = Host.one(Host.mac==mac)
-        if _duple_mac_host and _duple_mac_host.id != int(host_id): raise Exception('mac %s is duplicated' % mac)
-        host = Host.get(host_id)
-        if host.range_type != 'static': raise Exception('range type is not static')
-        host.name = name
-        host.mac = mac
-        host.model = model
-        host.serial = serial
-        host.desc = desc
-        host.update()
+        netops_lock.acquire()
+        try:
+            if Host.one(Host.name==name): raise Exception('name %s is already exist' % name)
+            _duple_mac_host = Host.one(Host.mac==mac)
+            if _duple_mac_host and _duple_mac_host.id != int(host_id): raise Exception('mac %s is duplicated' % mac)
+            host = Host.get(host_id)
+            if host.range_type != 'static': raise Exception('range type is not static')
+            host.name = name
+            host.mac = mac
+            host.model = model
+            host.serial = serial
+            host.desc = desc
+            host.update()
+            
+            if name or mac:
+                env = Environment.one()
+                hosts = Host.list()
+                with open(no.h_dhcp, 'w') as h_dhcp, open(no.h_dns, 'w') as h_dns:
+                    for _host in hosts:
+                        if _host.range_type == 'static' and _host.mac != '' and _host.ip != '':
+                            h_dhcp.write('dhcp-host=%s,%s\n' % (_host.mac, _host.ip))
+                        if env.domain != '' and _host.range_name != '' and _host.name != '' and _host.ip != '':
+                            h_dns.write('%s\t%s.%s.%s\n' % (_host.ip, _host.name.replace(' ', '-'), _host.range_name.replace(' ', '-'), env.domain))
+                no.reload()
+        except Exception as e:
+            netops_lock.release()
+            raise e
+        netops_lock.release()
         
-        if name or mac:
-            env = Environment.one()
-            hosts = Host.list()
-            with open(no.h_dhcp, 'w') as h_dhcp, open(no.h_dns, 'w') as h_dns:
-                for _host in hosts:
-                    if _host.range_type == 'static' and _host.mac != '' and _host.ip != '':
-                        h_dhcp.write('dhcp-host=%s,%s\n' % (_host.mac, _host.ip))
-                    if env.domain != '' and _host.range_name != '' and _host.name != '' and _host.ip != '':
-                        h_dns.write('%s\t%s.%s.%s\n' % (_host.ip, _host.name.replace(' ', '-'), _host.range_name.replace(' ', '-'), env.domain))
-            no.reload()
-            return host
         return host
     
     @classmethod
@@ -366,15 +415,22 @@ class Host(Model):
         host.desc = ''
         host.update()
         
-        env = Environment.one()
-        hosts = Host.list()
-        with open(no.h_dhcp, 'w') as h_dhcp, open(no.h_dns, 'w') as h_dns:
-            for _host in hosts:
-                if _host.range_type == 'static' and _host.mac != '' and _host.ip != '':
-                    h_dhcp.write('dhcp-host=%s,%s\n' % (_host.mac, _host.ip))
-                if env.domain != '' and _host.range_name != '' and _host.name != '' and _host.ip != '':
-                    h_dns.write('%s\t%s.%s.%s\n' % (_host.ip, _host.name.replace(' ', '-'), _host.range_name.replace(' ', '-'), env.domain))
-        no.reload()
+        netops_lock.acquire()
+        try:
+            env = Environment.one()
+            hosts = Host.list()
+            with open(no.h_dhcp, 'w') as h_dhcp, open(no.h_dns, 'w') as h_dns:
+                for _host in hosts:
+                    if _host.range_type == 'static' and _host.mac != '' and _host.ip != '':
+                        h_dhcp.write('dhcp-host=%s,%s\n' % (_host.mac, _host.ip))
+                    if env.domain != '' and _host.range_name != '' and _host.name != '' and _host.ip != '':
+                        h_dns.write('%s\t%s.%s.%s\n' % (_host.ip, _host.name.replace(' ', '-'), _host.range_name.replace(' ', '-'), env.domain))
+            no.reload()
+        except Exception as e:
+            netops_lock.release()
+            raise e
+        netops_lock.release()
+        
         return host
 
 #===============================================================================
