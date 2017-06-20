@@ -134,7 +134,7 @@ class Environment(Model):
             for host in hosts:
                 if host.range_type == 'static' and host.mac != '' and host.ip != '':
                     h_dhcp.write('dhcp-host=%s,%s\n' % (host.mac, host.ip))
-                if env.domain != '' and host.model != '' and host.name != '' and host.ip != '':
+                if env.domain != '' and host.range_name != '' and host.name != '' and host.ip != '':
                     h_dns.write('%s\t%s.%s.%s\n' % (host.ip, host.name.replace(' ', '-'), host.range_name.replace(' ', '-'), env.domain))
         no.reload()
         return env
@@ -283,11 +283,11 @@ class StaticRange(Model):
             env = Environment.one()
             hosts = Host.list()
             with open(no.h_dhcp, 'w') as h_dhcp, open(no.h_dns, 'w') as h_dns:
-                for host in hosts:
-                    if host.range_type == 'static' and host.mac != '' and host.ip != '':
-                        h_dhcp.write('dhcp-host=%s,%s\n' % (host.mac, host.ip))
-                    if env.domain != '' and host.model != '' and host.name != '' and host.ip != '':
-                        h_dns.write('%s\t%s.%s.%s\n' % (host.ip, host.name.replace(' ', '-'), host.range_name.replace(' ', '-'), env.domain))
+                for _host in hosts:
+                    if _host.range_type == 'static' and _host.mac != '' and _host.ip != '':
+                        h_dhcp.write('dhcp-host=%s,%s\n' % (_host.mac, _host.ip))
+                    if env.domain != '' and _host.range_name != '' and _host.name != '' and _host.ip != '':
+                        h_dns.write('%s\t%s.%s.%s\n' % (_host.ip, _host.name.replace(' ', '-'), _host.range_name.replace(' ', '-'), env.domain))
             no.reload()
             return True
         raise Exception('incorrect static range id')
@@ -344,14 +344,12 @@ class Host(Model):
         if name or mac:
             env = Environment.one()
             hosts = Host.list()
-            with open(no.h_dhcp, 'w') as fd:
+            with open(no.h_dhcp, 'w') as h_dhcp, open(no.h_dns, 'w') as h_dns:
                 for _host in hosts:
                     if _host.range_type == 'static' and _host.mac != '' and _host.ip != '':
-                        fd.write('dhcp-host=%s,%s\n' % (_host.mac, _host.ip))
-            with open(no.h_dns, 'w') as fd:
-                for _host in hosts:
-                    if env.domain != '' and _host.model != '' and _host.name != '' and _host.ip != '':
-                        fd.write('%s\t%s.%s.%s\n' % (_host.ip, _host.name.replace(' ', '-'), _host.range_name.replace(' ', '-'), env.domain))
+                        h_dhcp.write('dhcp-host=%s,%s\n' % (_host.mac, _host.ip))
+                    if env.domain != '' and _host.range_name != '' and _host.name != '' and _host.ip != '':
+                        h_dns.write('%s\t%s.%s.%s\n' % (_host.ip, _host.name.replace(' ', '-'), _host.range_name.replace(' ', '-'), env.domain))
             no.reload()
             return host
         return host
@@ -370,14 +368,12 @@ class Host(Model):
         
         env = Environment.one()
         hosts = Host.list()
-        with open(no.h_dhcp, 'w') as fd:
+        with open(no.h_dhcp, 'w') as h_dhcp, open(no.h_dns, 'w') as h_dns:
             for _host in hosts:
                 if _host.range_type == 'static' and _host.mac != '' and _host.ip != '':
-                    fd.write('dhcp-host=%s,%s\n' % (_host.mac, _host.ip))
-        with open(no.h_dns, 'w') as fd:
-            for _host in hosts:
-                if env.domain != '' and _host.model != '' and _host.name != '' and _host.ip != '':
-                    fd.write('%s\t%s.%s.%s\n' % (_host.ip, _host.name.replace(' ', '-'), _host.range_name.replace(' ', '-'), env.domain))
+                    h_dhcp.write('dhcp-host=%s,%s\n' % (_host.mac, _host.ip))
+                if env.domain != '' and _host.range_name != '' and _host.name != '' and _host.ip != '':
+                    h_dns.write('%s\t%s.%s.%s\n' % (_host.ip, _host.name.replace(' ', '-'), _host.range_name.replace(' ', '-'), env.domain))
         no.reload()
         return host
 
