@@ -218,15 +218,15 @@ def netops_main_context_view(req, host_id=None):
     )
 
 @PAGE.DTABLE(netops)
-def netops_main_context_table(req, res):
+def netops_main_context_table(dtable):
     total = Host.count()
-    res.total(total)
-    if res.end == 0: res.end = total
-    if res.search != '':
-        hosts = Host.list(Host.ip.like('%%%s%%' % res.search))
-        res.filtered(hosts.count())
+    dtable.total(total)
+    if dtable.end == 0: dtable.end = total
+    if dtable.search != '':
+        hosts = Host.list(Host.ip.like('%%%s%%' % dtable.search))
+        dtable.filtered(hosts.count())
     else: hosts = Host.list()
-    hosts = hosts[res.start:res.end]
+    hosts = hosts[dtable.start:dtable.end]
     for host in hosts:
         if host.range_type == 'static':
             host_id = INPUT.HIDDEN('host_id', str(host.id))
@@ -250,7 +250,7 @@ def netops_main_context_table(req, res):
                 ),
                 host_id
             )
-            res.record(name,
+            dtable.record(name,
                        host.ip,
                        mac,
                        model,
@@ -259,7 +259,7 @@ def netops_main_context_table(req, res):
                        desc,
                        submit)
         else:
-            res.record(host.name,
+            dtable.record(host.name,
                        host.ip,
                        host.mac,
                        host.model,
@@ -403,17 +403,17 @@ def dynamic_dhcp_table_view(req, dr_id=None):
     )
 
 @PAGE.DTABLE(netops)
-def dynamic_dhcp_table(req, res):
+def dynamic_dhcp_table(dtable):
     total = DynamicRange.count()
-    res.total(total)
-    if res.end == 0: res.end = total
-    if res.search != '':
-        drs = DynamicRange.list(DynamicRange.name.like('%%%s%%' % res.search))
-        res.filtered(drs.count())
+    dtable.total(total)
+    if dtable.end == 0: dtable.end = total
+    if dtable.search != '':
+        drs = DynamicRange.list(DynamicRange.name.like('%%%s%%' % dtable.search))
+        dtable.filtered(drs.count())
     else: drs = DynamicRange.list()
-    drs = drs[res.start:res.end]
+    drs = drs[dtable.start:dtable.end]
     for dr in drs:
-        res.record(dr.name,
+        dtable.record(dr.name,
                    '%s ~ %s' % (dr.stt, dr.end),
                    '%s %s' % (dr.lease_num, dr.lease_tag),
                    dr.desc,
@@ -480,17 +480,17 @@ def static_dhcp_table_view(req, sr_id=None):
     )
 
 @PAGE.DTABLE(netops)
-def static_dhcp_table(req, res):
+def static_dhcp_table(dtable):
     total = StaticRange.count()
-    res.total(total)
-    if res.end == 0: res.end = total
-    if res.search != '':
-        srs = StaticRange.list(StaticRange.name.like('%%%s%%' % res.search))
-        res.filtered(srs.count())
+    dtable.total(total)
+    if dtable.end == 0: dtable.end = total
+    if dtable.search != '':
+        srs = StaticRange.list(StaticRange.name.like('%%%s%%' % dtable.search))
+        dtable.filtered(srs.count())
     else: srs = StaticRange.list()
-    srs = srs[res.start:res.end]
+    srs = srs[dtable.start:dtable.end]
     for sr in srs:
-        res.record(sr.name,
+        dtable.record(sr.name,
                    '%s ~ %s' % (sr.stt, sr.end),
                    sr.desc,
                    DIV(STYLE='width:100%;text-align:center;').html(
