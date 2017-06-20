@@ -205,28 +205,21 @@ def netops_main_context_view(req, host_id=None):
     elif req.method == 'DELETE':
         Host.clear(host_id)
     
-    return netops.dtable(
-        DTABLE('Name',
-               'IP',
-               'MAC',
-               'Model',
-               'Serial',
-               'Range',
-               'Description',
-               'Action'),
+    return netops.table(
+        TABLE.SYNC('Name',
+                   'IP',
+                   'MAC',
+                   'Model',
+                   'Serial',
+                   'Range',
+                   'Description',
+                   'Action'),
         'netops_main_context_table'
     )
 
-@PAGE.DTABLE(netops)
-def netops_main_context_table(dtable):
-    total = Host.count()
-    dtable.total(total)
-    if dtable.end == 0: dtable.end = total
-    if dtable.search != '':
-        hosts = Host.list(Host.ip.like('%%%s%%' % dtable.search))
-        dtable.filtered(hosts.count())
-    else: hosts = Host.list()
-    hosts = hosts[dtable.start:dtable.end]
+@PAGE.TABLE(netops)
+def netops_main_context_table(table):
+    hosts = Host.list()
     for host in hosts:
         if host.range_type == 'static':
             host_id = INPUT.HIDDEN('host_id', str(host.id))
@@ -250,23 +243,23 @@ def netops_main_context_table(dtable):
                 ),
                 host_id
             )
-            dtable.record(name,
-                       host.ip,
-                       mac,
-                       model,
-                       serial,
-                       '%s (%s)' % (host.range_name, host.range_type) if host.range_name != '' else host.range_name,
-                       desc,
-                       submit)
+            table.record(name,
+                         host.ip,
+                         mac,
+                         model,
+                         serial,
+                         '%s (%s)' % (host.range_name, host.range_type) if host.range_name != '' else host.range_name,
+                         desc,
+                         submit)
         else:
-            dtable.record(host.name,
-                       host.ip,
-                       host.mac,
-                       host.model,
-                       host.serial,
-                       '%s (%s)' % (host.range_name, host.range_type) if host.range_name != '' else host.range_name,
-                       host.desc,
-                       ' ')
+            table.record(host.name,
+                         host.ip,
+                         host.mac,
+                         host.model,
+                         host.serial,
+                         '%s (%s)' % (host.range_name, host.range_type) if host.range_name != '' else host.range_name,
+                         host.desc,
+                         ' ')
 
 @PAGE.MENU(netops, 'Settings>>Environment', 'id-card')
 def environment_setting(req):
@@ -393,36 +386,29 @@ def dynamic_dhcp_table_view(req, dr_id=None):
     elif req.method == 'DELETE':
         DynamicRange.remove(int(dr_id))
     
-    return netops.dtable(
-        DTABLE('Name',
-               'Range',
-               'Lease Time',
-               'Description',
-               ' '),
+    return netops.table(
+        TABLE.SYNC('Name',
+                   'Range',
+                   'Lease Time',
+                   'Description',
+                   'Action'),
         'dynamic_dhcp_table'
     )
 
-@PAGE.DTABLE(netops)
-def dynamic_dhcp_table(dtable):
-    total = DynamicRange.count()
-    dtable.total(total)
-    if dtable.end == 0: dtable.end = total
-    if dtable.search != '':
-        drs = DynamicRange.list(DynamicRange.name.like('%%%s%%' % dtable.search))
-        dtable.filtered(drs.count())
-    else: drs = DynamicRange.list()
-    drs = drs[dtable.start:dtable.end]
+@PAGE.TABLE(netops)
+def dynamic_dhcp_table(table):
+    drs = DynamicRange.list()
     for dr in drs:
-        dtable.record(dr.name,
-                   '%s ~ %s' % (dr.stt, dr.end),
-                   '%s %s' % (dr.lease_num, dr.lease_tag),
-                   dr.desc,
-                   DIV(STYLE='width:100%;text-align:center;').html(
-                       netops.signal(
-                           BUTTON(CLASS='btn-danger btn-xs', STYLE='margin:0px;padding:0px 5px;font-size:11px;').html('Delete'),
-                           'DELETE',
-                           'dynamic_dhcp_table_view', str(dr.id))
-                   )
+        table.record(dr.name,
+                     '%s ~ %s' % (dr.stt, dr.end),
+                     '%s %s' % (dr.lease_num, dr.lease_tag),
+                     dr.desc,
+                     DIV(STYLE='width:100%;text-align:center;').html(
+                         netops.signal(
+                             BUTTON(CLASS='btn-danger btn-xs', STYLE='margin:0px;padding:0px 5px;font-size:11px;').html('Delete'),
+                            'DELETE',
+                            'dynamic_dhcp_table_view', str(dr.id))
+                    )
         )
 
 @PAGE.MENU(netops, 'Settings>>Static DHCP', 'id-card')
@@ -471,32 +457,25 @@ def static_dhcp_table_view(req, sr_id=None):
     elif req.method == 'DELETE':
         StaticRange.remove(int(sr_id))
     
-    return netops.dtable(
-        DTABLE('Name',
-               'Range',
-               'Description',
-               ' '),
+    return netops.table(
+        TABLE.SYNC('Name',
+                   'Range',
+                   'Description',
+                   'Action'),
         'static_dhcp_table'
     )
 
-@PAGE.DTABLE(netops)
-def static_dhcp_table(dtable):
-    total = StaticRange.count()
-    dtable.total(total)
-    if dtable.end == 0: dtable.end = total
-    if dtable.search != '':
-        srs = StaticRange.list(StaticRange.name.like('%%%s%%' % dtable.search))
-        dtable.filtered(srs.count())
-    else: srs = StaticRange.list()
-    srs = srs[dtable.start:dtable.end]
+@PAGE.TABLE(netops)
+def static_dhcp_table(table):
+    srs = StaticRange.list()
     for sr in srs:
-        dtable.record(sr.name,
-                   '%s ~ %s' % (sr.stt, sr.end),
-                   sr.desc,
-                   DIV(STYLE='width:100%;text-align:center;').html(
-                       netops.signal(
-                           BUTTON(CLASS='btn-danger btn-xs', STYLE='margin:0px;padding:0px 5px;font-size:11px;').html('Delete'),
-                           'DELETE',
-                           'static_dhcp_table_view', str(sr.id))
+        table.record(sr.name,
+                     '%s ~ %s' % (sr.stt, sr.end),
+                     sr.desc,
+                     DIV(STYLE='width:100%;text-align:center;').html(
+                         netops.signal(
+                             BUTTON(CLASS='btn-danger btn-xs', STYLE='margin:0px;padding:0px 5px;font-size:11px;').html('Delete'),
+                             'DELETE',
+                             'static_dhcp_table_view', str(sr.id))
                    )
         )
