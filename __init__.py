@@ -205,30 +205,77 @@ def netops_main_context_view(req, host_id=None):
     elif req.method == 'DELETE':
         Host.clear(host_id)
     
-    return netops.table(
-        TABLE.SYNC('Name',
-                   'IP',
-                   'MAC',
-                   'Model',
-                   'Serial',
-                   'Range',
-                   'Description',
-                   'Action'),
-        'netops_main_context_table'
+    nav = NAV()
+    nav.TAB('Total',
+        netops.table(
+            TABLE.SYNC('Name',
+                       'IP',
+                       'MAC',
+                       'Model',
+                       'Serial',
+                       'Range',
+                       'Description'),
+            'netops_main_total_table'
+        )
     )
+    nav.TAB('Dynamic',
+        netops.table(
+            TABLE.SYNC('Range', 'IP'),
+            'netops_main_dynamic_table'
+        )
+    )
+    srs = StaticRange.list()
+    for sr in srs:
+        nav.TAB(sr.name + ' (static)',
+            netops.table(
+                TABLE.SYNC('Name',
+                       'IP',
+                       'MAC',
+                       'Model',
+                       'Serial',
+                       'Range',
+                       'Description',
+                       'Action'),
+                'netops_main_static_table', str(sr.id)
+            )
+        )
+        
+    return nav
 
 @PAGE.TABLE(netops)
-def netops_main_context_table(table):
+def netops_main_total_table(table):
     hosts = Host.list()
     for host in hosts:
-        if host.range_type == 'static':
+        table.record(host.name,
+                     host.ip,
+                     host.mac,
+                     host.model,
+                     host.serial,
+                     '%s (%s)' % (host.range_name, host.range_type) if host.range_name != '' else host.range_name,
+                     host.desc)
+
+@PAGE.TABLE(netops)
+def netops_main_dynamic_table(table):
+    drs = DynamicRange.list()
+    for dr in drs:
+        hosts = Host.list(Host.ip_num>=dr.stt_num, Host.ip_num<=dr.end_num)
+        for host in hosts:
+            table.record(dr.name, host.ip)
+
+@PAGE.TABLE(netops)
+def netops_main_static_table(table, sr_id):
+    if isinstance(sr_id, str): sr_id = int(sr_id)
+    sr = StaticRange.get(sr_id)
+    if sr:
+        hosts = Host.list(Host.ip_num>=sr.stt_num, Host.ip_num<=sr.end_num)
+        for host in hosts:
             host_id = INPUT.HIDDEN('host_id', str(host.id))
             name = INPUT.TEXT('name', host.name, CLASS='page-input-in-table')
             mac = INPUT.TEXT('mac', host.mac, CLASS='page-input-in-table')
-            _model_list = [m for m in _host_models]
-            _model_list.remove(host.model)
-            _model_list.insert(0, host.model)
-            model = INPUT.SELECT('model', *_model_list, CLASS='page-input-in-table')
+            model_list = [m for m in _host_models]
+            model_list.remove(host.model)
+            model_list.insert(0, host.model)
+            model = INPUT.SELECT('model', *model_list, CLASS='page-input-in-table')
             serial = INPUT.TEXT('serial', host.serial, CLASS='page-input-in-table')
             desc = INPUT.TEXT('desc', host.desc, CLASS='page-input-in-table')
             submit = DIV(STYLE='width:100%;text-align:center;').html(
@@ -251,15 +298,6 @@ def netops_main_context_table(table):
                          '%s (%s)' % (host.range_name, host.range_type) if host.range_name != '' else host.range_name,
                          desc,
                          submit)
-        else:
-            table.record(host.name,
-                         host.ip,
-                         host.mac,
-                         host.model,
-                         host.serial,
-                         '%s (%s)' % (host.range_name, host.range_type) if host.range_name != '' else host.range_name,
-                         host.desc,
-                         ' ')
 
 @PAGE.MENU(netops, 'Settings>>Environment', 'id-card')
 def environment_setting(req):

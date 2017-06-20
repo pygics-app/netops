@@ -70,7 +70,7 @@ class Environment(Model):
     @classmethod
     def set(cls, domain='', cidr='', gateway='', dns_int='', dns_ext=''):
         kv = re.match('^\s*(?P<domain>[\w\d\-\.]+)\s*$', domain)
-        domain = kv.group('domain').lower() if kv != None else ''
+        domain = kv.group('domain') if kv != None else ''
         network, prefix = grammar.Network.isCIDR(cidr)
         if network and prefix:
             cidr = network + '/' + prefix
@@ -366,17 +366,19 @@ class Host(Model):
     def set(cls, host_id, name='', mac='', model='', serial='', desc=''):
         if isinstance(host_id, str): host_id = int(host_id)
         kv = re.match('^\s*(?P<name>[\w\d\-]+)\s*$', name)
-        name = kv.group('name').lower() if kv != None else ''
+        name = kv.group('name') if kv != None else ''
         mac = grammar.Network.isMAC(mac)
+        if mac == None: mac = ''
         model = model if model in _host_models else 'Unknown'
         kv = re.match('^\s*(?P<serial>[\w\d\-]+)\s*$', serial)
         serial = kv.group('serial') if kv != None else ''
         
         netops_lock.acquire()
         try:
-            if Host.one(Host.name==name): raise Exception('name %s is already exist' % name)
-            _duple_mac_host = Host.one(Host.mac==mac)
-            if _duple_mac_host and _duple_mac_host.id != int(host_id): raise Exception('mac %s is duplicated' % mac)
+            if name != '' and Host.one(Host.name==name): raise Exception('name %s is already exist' % name)
+            if mac != '':
+                _duple_mac_host = Host.one(Host.mac==mac)
+                if _duple_mac_host and _duple_mac_host.id != host_id: raise Exception('mac %s is duplicated' % mac)
             host = Host.get(host_id)
             if host.range_type != 'static': raise Exception('range type is not static')
             host.name = name
