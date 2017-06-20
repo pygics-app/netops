@@ -67,7 +67,7 @@ class Environment(Model):
     
     @classmethod
     def set(cls, domain='', cidr='', gateway='', dns_int='', dns_ext=''):
-        kv = re.match('^\s*(?P<domain>[\w\d\-]+)\s*$', domain)
+        kv = re.match('^\s*(?P<domain>[\w\d\-\.]+)\s*$', domain)
         domain = kv.group('domain').lower() if kv != None else ''
         network, prefix = grammar.Network.isCIDR(cidr)
         if network and prefix:
