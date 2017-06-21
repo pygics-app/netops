@@ -377,13 +377,13 @@ class Host(Model):
         
         netops_lock.acquire()
         try:
+            host = Host.get(host_id)
             if name != '':
-                _dup_host = Host.one(Host.name==name)
+                _dup_host = Host.one(Host.name==name, Host.range_name==host.range_name)
                 if _dup_host != None and _dup_host.id != host_id: raise Exception('name %s is already exist' % name)
             if mac != '':
                 _duple_mac = Host.one(Host.mac==mac)
                 if _duple_mac and _duple_mac.id != host_id: raise Exception('mac %s is duplicated' % mac)
-            host = Host.get(host_id)
             if host.range_type != 'static': raise Exception('range type is not static')
             host.name = name
             host.mac = mac

@@ -263,9 +263,9 @@ def netops_main_total_table(table):
         if host.model == 'Unknown': model = ''
         else: model = host.model
         table.record(host.name,
-                     dns,
+                     ANCH(HREF=dns).html(dns),
                      '%s (%s)' % (host.range_name, host.range_type) if host.range_name != '' else host.range_name,
-                     host.ip,
+                     ANCH(HREF=host.ip).html(host.ip),
                      host.mac,
                      model,
                      host.serial,
