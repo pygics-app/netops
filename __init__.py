@@ -152,7 +152,7 @@ def api_setHost(req):
 # Page
 #===============================================================================
 netops = PAGE(resource='resource', template=PAGE.TEMPLATE.SIMPLE_DK)
-netops.addCategory('Settings', 'dashboard')
+netops.addCategory('Settings', 'cogs')
 
 @PAGE.MAIN(netops, 'NetOps')
 def netops_main_page(req):
@@ -319,7 +319,7 @@ def netops_main_static_table(table, sr_id):
                          desc,
                          submit)
 
-@PAGE.MENU(netops, 'Settings::Environment', 'id-card')
+@PAGE.MENU(netops, 'Settings::Environment', 'asterisk')
 def environment_setting(req):
     
     if req.method == 'POST':
@@ -381,7 +381,7 @@ def environment_setting(req):
         )
     )
 
-@PAGE.MENU(netops, 'Settings::Dynamic DHCP', 'id-card')
+@PAGE.MENU(netops, 'Settings::Dynamic DHCP', 'map_signs')
 def dynamic_dhcp_setting(req):
     
     name = INPUT.TEXT('name')
@@ -469,7 +469,7 @@ def dynamic_dhcp_table(table):
                     )
         )
 
-@PAGE.MENU(netops, 'Settings::Static DHCP', 'id-card')
+@PAGE.MENU(netops, 'Settings::Static DHCP', 'paperclip')
 def static_dhcp_setting(req):
     
     name = INPUT.TEXT('name')
