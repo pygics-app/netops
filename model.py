@@ -337,7 +337,7 @@ class StaticRange(Model):
             return True
         raise Exception('incorrect static range id')
 
-_host_models = ['Unknown', 'Nexus', 'Catalyst', 'ASA', 'UCS', 'Host', 'VM', 'Node']
+_host_models = ['Unknown', 'Host', 'Node', 'Nexus', 'Catalyst', 'UCS', 'ASA', 'HV', 'VM']
 @Bucket.register(bk)
 class Host(Model):
     

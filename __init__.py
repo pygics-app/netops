@@ -240,7 +240,6 @@ def netops_main_static_view(req, sr_id=None, host_id=None):
     return DIV().html(
         netops.table(
             TABLE.SYNC('Name',
-                       'DNS',
                        'IP',
                        'MAC',
                        'Model',
@@ -261,13 +260,15 @@ def netops_main_total_table(table):
         if host.name != '' and host.range_name != '' and env.domain != '':
             dns = '%s.%s.%s' % (host.name.replace(' ', '-'), host.range_name.replace(' ', '-'), env.domain)
         else: dns = ''
+        if host.model == 'Unknown': model = ''
+        else: model = host.model
         table.record(host.name,
-                     SMALL().html(dns),
+                     dns,
+                     '%s (%s)' % (host.range_name, host.range_type) if host.range_name != '' else host.range_name,
                      host.ip,
                      host.mac,
-                     host.model,
+                     model,
                      host.serial,
-                     '%s (%s)' % (host.range_name, host.range_type) if host.range_name != '' else host.range_name,
                      host.desc)
 
 @PAGE.TABLE(netops)
@@ -310,11 +311,7 @@ def netops_main_static_table(table, sr_id):
                 sr_id,
                 host_id
             )
-            if host.name != '' and host.range_name != '' and env.domain != '':
-                dns = '%s.%s.%s' % (host.name.replace(' ', '-'), host.range_name.replace(' ', '-'), env.domain)
-            else: dns = ''
             table.record(name,
-                         SMALL().html(dns),
                          host.ip,
                          mac,
                          model,
