@@ -211,11 +211,12 @@ def netops_main_context_view(req):
 def netops_main_total_view(req):
     return netops.table(
         TABLE.SYNC('Name',
+                   'DNS',
+                   'Range',
                    'IP',
                    'MAC',
                    'Model',
-                   'Serial',
-                   'Range',
+                   'Serial',                   
                    'Description'),
         'netops_main_total_table'
     )
@@ -239,6 +240,7 @@ def netops_main_static_view(req, sr_id=None, host_id=None):
     return DIV().html(
         netops.table(
             TABLE.SYNC('Name',
+                       'DNS',
                        'IP',
                        'MAC',
                        'Model',
@@ -253,9 +255,14 @@ def netops_main_static_view(req, sr_id=None, host_id=None):
 
 @PAGE.TABLE(netops)
 def netops_main_total_table(table):
+    env = Environment.one()
     hosts = Host.list()
     for host in hosts:
+        if host.name != '' and host.range_name != '' and env.domain != '':
+            dns = '%s.%s.%s' % (host.name.replace(' ', '-'), host.range_name.replace(' ', '-'), env.domain)
+        else: dns = ''
         table.record(host.name,
+                     SMALL().html(dns),
                      host.ip,
                      host.mac,
                      host.model,
@@ -274,6 +281,7 @@ def netops_main_dynamic_table(table):
 @PAGE.TABLE(netops)
 def netops_main_static_table(table, sr_id):
     if isinstance(sr_id, str): sr_id = int(sr_id)
+    env = Environment.one()
     sr = StaticRange.get(sr_id)
     if sr:
         hosts = Host.list(Host.ip_num>=sr.stt_num, Host.ip_num<=sr.end_num)
@@ -302,7 +310,11 @@ def netops_main_static_table(table, sr_id):
                 sr_id,
                 host_id
             )
+            if host.name != '' and host.range_name != '' and env.domain != '':
+                dns = '%s.%s.%s' % (host.name.replace(' ', '-'), host.range_name.replace(' ', '-'), env.domain)
+            else: dns = ''
             table.record(name,
+                         SMALL().html(dns),
                          host.ip,
                          mac,
                          model,
