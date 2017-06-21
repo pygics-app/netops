@@ -376,8 +376,8 @@ class Host(Model):
         netops_lock.acquire()
         try:
             if name != '':
-                dup_host = Host.one(Host.name==name)
-                if dup_host and dup_host.id != host_id: raise Exception('name %s is already exist' % name)
+                _dup_host = Host.one(Host.name==name)
+                if _dup_host and _dup_host.id != host_id: raise Exception('name %s is already exist' % name)
             if mac != '':
                 _duple_mac = Host.one(Host.mac==mac)
                 if _duple_mac and _duple_mac.id != host_id: raise Exception('mac %s is duplicated' % mac)
