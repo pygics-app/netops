@@ -411,7 +411,7 @@ class Host(Model):
     def clear(cls, host_id):
         if isinstance(host_id, str) or isinstance(host_id, unicode): host_id = int(host_id)
         host = Host.get(host_id)
-        if host.range_type != 'static': raise Exeption('range type is not static')
+        if host.range_type != 'static': raise Exception('range type is not static')
         host.name = ''
         host.mac = ''
         host.model = 'Unknown'
