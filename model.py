@@ -217,7 +217,7 @@ class DynamicRange(Model):
     
     @classmethod
     def remove(cls, dr_id):
-        if isinstance(dr_id, str): dr_id = int(dr_id) 
+        if isinstance(dr_id, str) or isinstance(dr_id, unicode): dr_id = int(dr_id) 
         dr = DynamicRange.get(dr_id)
         if dr:
             
@@ -299,7 +299,7 @@ class StaticRange(Model):
     
     @classmethod
     def remove(cls, sr_id):
-        if isinstance(sr_id, str): sr_id = int(sr_id)
+        if isinstance(sr_id, str) or isinstance(sr_id, unicode): sr_id = int(sr_id)
         sr = StaticRange.get(sr_id)
         if sr:
             
@@ -364,7 +364,7 @@ class Host(Model):
         
     @classmethod
     def set(cls, host_id, name='', mac='', model='', serial='', desc=''):
-        if isinstance(host_id, str): host_id = int(host_id)
+        if isinstance(host_id, str) or isinstance(host_id, unicode): host_id = int(host_id)
         kv = re.match('^\s*(?P<name>\w[\w\-]*)\s*$', name)
         name = kv.group('name') if kv != None else ''
         mac = grammar.Network.isMAC(mac)
@@ -377,7 +377,7 @@ class Host(Model):
         try:
             if name != '':
                 _dup_host = Host.one(Host.name==name)
-                if _dup_host and _dup_host.id != host_id: raise Exception('name %s is already exist' % name)
+                if _dup_host != None and _dup_host.id != host_id: raise Exception('name %s is already exist' % name)
             if mac != '':
                 _duple_mac = Host.one(Host.mac==mac)
                 if _duple_mac and _duple_mac.id != host_id: raise Exception('mac %s is duplicated' % mac)
@@ -409,7 +409,7 @@ class Host(Model):
     
     @classmethod
     def clear(cls, host_id):
-        if isinstance(host_id, str): host_id = int(host_id)
+        if isinstance(host_id, str) or isinstance(host_id, unicode): host_id = int(host_id)
         host = Host.get(host_id)
         if host.range_type != 'static': raise Exeption('range type is not static')
         host.name = ''
