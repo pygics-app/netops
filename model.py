@@ -126,7 +126,9 @@ class Environment(Model):
             hosts = Host.list()
             with open(no.conf, 'w') as fd:
                 if env.netmask != '': fd.write('dhcp-option=1,%s\n' % env.netmask)
-                if env.gateway != '': fd.write('dhcp-option=3,%s\n' % env.gateway)
+                if env.gateway != '':
+                    fd.write('dhcp-option=3,%s\n' % env.gateway)
+                    fd.write('dhcp-range=%s,%s\n' % (env.gateway, env.gateway))
                 if env.dns_int != '': fd.write('dhcp-option=6,%s\n' % env.dns_int)
             with open(no.r_dns, 'w') as fd:
                 if env.dns_ext != '': fd.write('nameserver\t%s\n' % env.dns_ext)
