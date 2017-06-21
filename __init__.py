@@ -381,7 +381,7 @@ def environment_setting(req):
         )
     )
 
-@PAGE.MENU(netops, 'Settings::Dynamic DHCP', 'map_signs')
+@PAGE.MENU(netops, 'Settings::Dynamic DHCP', 'map-signs')
 def dynamic_dhcp_setting(req):
     
     name = INPUT.TEXT('name')
