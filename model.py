@@ -300,7 +300,7 @@ class StaticRange(Model):
     @classmethod
     def remove(cls, sr_id):
         if isinstance(sr_id, str): sr_id = int(sr_id)
-        sr = StaticRange.get(id)
+        sr = StaticRange.get(sr_id)
         if sr:
             
             netops_lock.acquire()
