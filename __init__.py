@@ -166,14 +166,10 @@ def netops_main_page(req):
     
 @PAGE.VIEW(netops)
 def netops_main_status_view(req):
-    
     host_count = Host.count()
+    bar = DIV(STYLE='width:100%;height:20px;background-color:#888;', TITLE='Unsettled Environment')
     
-    bar = DIV(STYLE='width:100%;height:20px;')
-    
-    hosts = Host.list()
-    
-    for host in hosts:
+    for host in Host.list():
         if host.range_type == '':
             bar.html(
                 DIV(TITLE='Reserved\n%s' % (host.ip),
@@ -182,13 +178,13 @@ def netops_main_status_view(req):
         elif host.range_type == 'dynamic':
             bar.html(
                 DIV(TITLE='Dynamic DHCP\n%s\n%s' % (host.range_name, host.ip),
-                    STYLE='float:left;width:calc(100%%/%d);height:20px;background-color:#0f0;' % host_count)
+                    STYLE='float:left;width:calc(100%%/%d);height:20px;background-color:#44ffcc;' % host_count)
             )
         elif host.range_type == 'static':
-            bar.html(
-                DIV(TITLE='Static DHCP\n%s\n%s\n%s' % (host.range_name, host.ip, host.name),
-                    STYLE='float:left;width:calc(100%%/%d);height:20px;background-color:#00f;' % host_count)
-            )
+            sh = DIV(TITLE='Static DHCP\n%s\n%s\n%s' % (host.range_name, host.ip, host.name),
+                     STYLE='float:left;width:calc(100%%/%d);height:20px;cursor:pointer;color:#fff;background-color:#44ccff;' % host_count)
+            if host.name != '' or host.mac != '': sh.html('!')
+            bar.html(sh)
         elif host.range_type == 'environment':
             bar.html(
                 DIV(TITLE='Environment\n%s\n%s' % (host.ip, host.name),
@@ -198,49 +194,62 @@ def netops_main_status_view(req):
     return bar
 
 @PAGE.VIEW(netops)
-def netops_main_context_view(req, host_id=None):
+def netops_main_context_view(req):
+    
+    nav = NAV()
+    nav.TAB('Total', netops.patch('netops_main_total_view'))
+    nav.TAB('Dynamic', netops.patch('netops_main_dynamic_view'))
+    srs = StaticRange.list()
+    for sr in srs:
+        nav.TAB(sr.name,
+            netops.patch('netops_main_static_view::' + str(sr.id), str(sr.id))
+        )
+        
+    return nav
 
+@PAGE.VIEW(netops)
+def netops_main_total_view(req):
+    return netops.table(
+        TABLE.SYNC('Name',
+                   'IP',
+                   'MAC',
+                   'Model',
+                   'Serial',
+                   'Range',
+                   'Description'),
+        'netops_main_total_table'
+    )
+
+@PAGE.VIEW(netops)
+def netops_main_dynamic_view(req):
+    return netops.table(
+        TABLE.SYNC('Range', 'IP'),
+        'netops_main_dynamic_table'
+    )
+
+@PAGE.VIEW(netops)
+def netops_main_static_view(req, sr_id=None, host_id=None):
+    
     if req.method == 'POST':
+        if 'sr_id' in req.data: sr_id = req.data.pop('sr_id')
         Host.set(**req.data)
     elif req.method == 'DELETE':
         Host.clear(host_id)
     
-    nav = NAV()
-    nav.TAB('Total',
+    return DIV().html(
         netops.table(
             TABLE.SYNC('Name',
                        'IP',
                        'MAC',
                        'Model',
                        'Serial',
-                       'Range',
-                       'Description'),
-            'netops_main_total_table'
-        )
-    )
-    nav.TAB('Dynamic',
-        netops.table(
-            TABLE.SYNC('Range', 'IP'),
-            'netops_main_dynamic_table'
-        )
-    )
-    srs = StaticRange.list()
-    for sr in srs:
-        nav.TAB(sr.name + ' (static)',
-            netops.table(
-                TABLE.SYNC('Name',
-                       'IP',
-                       'MAC',
-                       'Model',
-                       'Serial',
-                       'Range',
                        'Description',
                        'Action'),
-                'netops_main_static_table', str(sr.id)
-            )
-        )
-        
-    return nav
+            'netops_main_static_table', sr_id
+        ),
+        netops.refresh('netops_main_status_view'),
+        netops.refresh('netops_main_total_view')
+    )
 
 @PAGE.TABLE(netops)
 def netops_main_total_table(table):
@@ -269,6 +278,7 @@ def netops_main_static_table(table, sr_id):
     if sr:
         hosts = Host.list(Host.ip_num>=sr.stt_num, Host.ip_num<=sr.end_num)
         for host in hosts:
+            sr_id = INPUT.HIDDEN('sr_id', str(sr.id))
             host_id = INPUT.HIDDEN('host_id', str(host.id))
             name = INPUT.TEXT('name', host.name, CLASS='page-input-in-table')
             mac = INPUT.TEXT('mac', host.mac, CLASS='page-input-in-table')
@@ -281,13 +291,15 @@ def netops_main_static_table(table, sr_id):
             submit = DIV(STYLE='width:100%;text-align:center;').html(
                 netops.context(
                     BUTTON(CLASS='btn-primary btn-xs', STYLE='margin:0px;padding:0px 5px;font-size:11px;').html('Save'),
-                    'netops_main_context_view',
-                    host_id, name, mac, model, serial, desc
+                    'netops_main_static_view::' + str(sr.id),
+                    sr_id, host_id, name, mac, model, serial, desc
                 ),
                 netops.signal(
                     BUTTON(CLASS='btn-danger btn-xs', STYLE='margin:0px;padding:0px 5px;font-size:11px;').html('Clear'),
-                    'DELETE', 'netops_main_context_view', str(host.id)
+                    'DELETE', 'netops_main_static_view::' + str(sr.id),
+                    str(sr.id), str(host.id)
                 ),
+                sr_id,
                 host_id
             )
             table.record(name,
@@ -295,11 +307,10 @@ def netops_main_static_table(table, sr_id):
                          mac,
                          model,
                          serial,
-                         '%s (%s)' % (host.range_name, host.range_type) if host.range_name != '' else host.range_name,
                          desc,
                          submit)
 
-@PAGE.MENU(netops, 'Settings>>Environment', 'id-card')
+@PAGE.MENU(netops, 'Settings::Environment', 'id-card')
 def environment_setting(req):
     
     if req.method == 'POST':
@@ -361,7 +372,7 @@ def environment_setting(req):
         )
     )
 
-@PAGE.MENU(netops, 'Settings>>Dynamic DHCP', 'id-card')
+@PAGE.MENU(netops, 'Settings::Dynamic DHCP', 'id-card')
 def dynamic_dhcp_setting(req):
     
     name = INPUT.TEXT('name')
@@ -449,7 +460,7 @@ def dynamic_dhcp_table(table):
                     )
         )
 
-@PAGE.MENU(netops, 'Settings>>Static DHCP', 'id-card')
+@PAGE.MENU(netops, 'Settings::Static DHCP', 'id-card')
 def static_dhcp_setting(req):
     
     name = INPUT.TEXT('name')

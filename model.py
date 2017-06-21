@@ -69,7 +69,7 @@ class Environment(Model):
     
     @classmethod
     def set(cls, domain='', cidr='', gateway='', dns_int='', dns_ext=''):
-        kv = re.match('^\s*(?P<domain>[\w\d\-\.]+)\s*$', domain)
+        kv = re.match('^\s*(?P<domain>\w[\w\-\.]*)\s*$', domain)
         domain = kv.group('domain') if kv != None else ''
         network, prefix = grammar.Network.isCIDR(cidr)
         if network and prefix:
@@ -104,18 +104,18 @@ class Environment(Model):
             if gateway:
                 gw = Host.one(Host.ip==gateway)
                 if gw:
-                    gw.name = 'Gateway'
+                    gw.name = 'gateway'
                     gw.range_type = 'environment'
-                    gw.range_name = 'Environment'
+                    gw.range_name = 'env'
                     gw.range_id = -1
                     gw.update()
                     env.gateway = gateway
             if dns_int:
                 di = Host.one(Host.ip==dns_int)
                 if di:
-                    di.name = 'Internal DNS'
+                    di.name = 'dns'
                     di.range_type = 'environment'
-                    di.range_name = 'Environment'
+                    di.range_name = 'env'
                     di.range_id = -1
                     di.update()
                     env.dns_int = dns_int
@@ -173,12 +173,12 @@ class DynamicRange(Model):
     
     @classmethod
     def add(cls, name='', stt='', end='', lease_num='', lease_tag='', desc=''):
-        kv = re.match('^\s*(?P<val>[\w\-\.\:]+)\s*$', name)
-        name = kv.group('val') if kv != None else None
+        kv = re.match('^\s*(?P<name>\w[\w\-]*)\s*$', name)
+        name = kv.group('name') if kv != None else None
         stt = grammar.Network.isIP(stt)
         end = grammar.Network.isIP(end)
-        kv = re.match('^\s*(?P<val>\d+)\s*$', lease_num)
-        lease_num = kv.group('val') if kv != None else None
+        kv = re.match('^\s*(?P<lnum>\d+)\s*$', lease_num)
+        lease_num = kv.group('lnum') if kv != None else None
         lease_tag = lease_tag if lease_tag in _range_ip_lease_tag else None
         
         if name and stt and end and lease_num and lease_tag:
@@ -266,8 +266,8 @@ class StaticRange(Model):
     
     @classmethod
     def add(cls, name='', stt='', end='', desc=''):
-        kv = re.match('^\s*(?P<val>[\w\-\.\:]+)\s*$', name)
-        name = kv.group('val') if kv != None else None
+        kv = re.match('^\s*(?P<name>\w[\w\-]*)\s*$', name)
+        name = kv.group('name') if kv != None else None
         stt = grammar.Network.isIP(stt)
         end = grammar.Network.isIP(end)
         
@@ -365,7 +365,7 @@ class Host(Model):
     @classmethod
     def set(cls, host_id, name='', mac='', model='', serial='', desc=''):
         if isinstance(host_id, str): host_id = int(host_id)
-        kv = re.match('^\s*(?P<name>[\w\d\-]+)\s*$', name)
+        kv = re.match('^\s*(?P<name>\w[\w\-]*)\s*$', name)
         name = kv.group('name') if kv != None else ''
         mac = grammar.Network.isMAC(mac)
         if mac == None: mac = ''
