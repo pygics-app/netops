@@ -1,5 +1,4 @@
 pip::ipaddress
-pkg::dnsmasq
 app::grammar
 app::page
 app::bucket
