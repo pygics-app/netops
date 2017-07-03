@@ -541,7 +541,7 @@ def static_dhcp_table(table):
                    )
         )
 
-@PAGE.MENU(netops, 'NTP')
+@PAGE.MENU(netops, 'NTP', 'clock-o')
 def ntp_setting(req):
     
     if req.method == 'POST':
