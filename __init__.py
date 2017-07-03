@@ -4,6 +4,7 @@ Created on 2017. 6. 10.
 @author: HyechurnJang
 '''
 
+import os
 import time
 import pygics
 from page import *
@@ -546,7 +547,7 @@ def ntp_setting(req):
     if req.method == 'POST':
         td = req.data
         tstr = '%s-%s-%s %s:%s:%s' % (td['year'], td['mon'], td['day'], td['hour'], td['min'], td['sec'])
-        print tstr
+        os.system('date -s "%s"' % tstr)
     
     cur = time.localtime()
     year = INPUT.TEXT('year', str(cur.tm_year))
