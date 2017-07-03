@@ -21,18 +21,24 @@ class NetOps(pygics.__PYGICS__):
         self.h_dhcp = self.d_dhcp + '/host.conf'
         self.r_dns = base_dir + '/resolv.dns'
         self.h_dns = base_dir + '/host.dns'
+        self.ntp_conf = base_dir + '/netops_ntp.conf'
+        self.ntp_pid = base_dir + '/netops_ntp.pid'
     
     def __release__(self):
         self.stop()
     
     def start(self):
-        cmd = '/usr/sbin/dnsmasq --user=root --group=root -h -x %s -C %s -7 %s -r %s -H %s' % (self.pid, self.conf, self.d_dhcp, self.r_dns, self.h_dns)
-        print('NetOps Start : %s' % ('ok' if os.system(cmd) == 0 else 'failed'))
+        dm_cmd = '/usr/sbin/dnsmasq --user=root --group=root -h -x %s -C %s -7 %s -r %s -H %s' % (self.pid, self.conf, self.d_dhcp, self.r_dns, self.h_dns)
+        print('Dnsmasq Start : %s' % ('ok' if os.system(dm_cmd) == 0 else 'failed'))
+        ntp_cmd = '/usr/sbin/ntpd -u root:root -c %s -p %s -g' % (self.ntp_conf, self.ntp_pid)
+        print('NTP Start : %s' % ('ok' if os.system(ntp_cmd) == 0 else 'failed'))
         return self
     
     def stop(self):
-        cmd = 'kill -9 `cat %s`; rm -rf %s' % (self.pid, self.pid)
-        print('NetOps Stop : %s' % ('ok' if os.system(cmd) == 0 else 'failed'))
+        dm_cmd = 'kill -9 `cat %s`; rm -rf %s' % (self.pid, self.pid)
+        print('Dnsmasq Stop : %s' % ('ok' if os.system(dm_cmd) == 0 else 'failed'))
+        ntp_cmd = 'kill -9 `cat %s`; rm -rf %s' % (self.ntp_pid, self.ntp_pid)
+        print('NTP Stop : %s' % ('ok' if os.system(ntp_cmd) == 0 else 'failed'))
         return self
     
     def reload(self):
@@ -54,21 +60,23 @@ class Environment(Model):
     prefix = Column(String(4))
     netmask = Column(String(16))
     gateway = Column(String(16))
-    dns_int = Column(Text)
-    dns_ext = Column(Text)
+    ntpserv = Column(String(16))
+    dns_int = Column(String(16))
+    dns_ext = Column(String(16))
     
-    def __init__(self, domain='', cidr='', network='', prefix='', netmask='', gateway='', dns_int='', dns_ext=''):
+    def __init__(self, domain='', cidr='', network='', prefix='', netmask='', ntpserv='', gateway='', dns_int='', dns_ext=''):
         self.domain = domain
         self.cidr = cidr
         self.network = network
         self.prefix = prefix
         self.netmask = netmask
         self.gateway = gateway
+        self.ntpserv = ntpserv
         self.dns_int = dns_int
         self.dns_ext = dns_ext
     
     @classmethod
-    def set(cls, domain='', cidr='', gateway='', dns_int='', dns_ext=''):
+    def set(cls, domain='', cidr='', gateway='', ntpserv='', dns_int='', dns_ext=''):
         kv = re.match('^\s*(?P<domain>\w[\w\-\.]*)\s*$', domain)
         domain = kv.group('domain') if kv != None else ''
         network, prefix = grammar.Network.isCIDR(cidr)
@@ -80,6 +88,7 @@ class Environment(Model):
             cidr = None
             netmask = None
         gateway = grammar.Network.isIP(gateway)
+        ntpserv = grammar.Network.isIP(ntpserv)
         dns_int = grammar.Network.isIP(dns_int)
         dns_ext = grammar.Network.isIP(dns_ext)
         
@@ -110,6 +119,15 @@ class Environment(Model):
                     gw.range_id = -1
                     gw.update()
                     env.gateway = gateway
+            if ntpserv:
+                ntp = Host.one(Host.ip==ntpserv)
+                if ntp:
+                    ntp.name = 'ntp'
+                    ntp.range_type = 'environment'
+                    ntp.range_name = 'env'
+                    ntp.range_id = -1
+                    ntp.update()
+                    env.ntpserv = ntpserv
             if dns_int:
                 di = Host.one(Host.ip==dns_int)
                 if di:
@@ -124,12 +142,22 @@ class Environment(Model):
             env.update()
             drs = DynamicRange.list()
             hosts = Host.list()
+            with open(no.ntp_conf) as fd:
+                if env.network != '' and env.netmask != '':
+                    fd.write('''
+driftfile /var/lib/ntp/drift
+restrict %s mask %s nomodify notrap
+server 127.127.1.0
+includefile /etc/ntp/crypto/pw
+keys /etc/ntp/keys
+disable monitor''' % (env.network, env.netmask))
             with open(no.conf, 'w') as fd:
                 if env.netmask != '': fd.write('dhcp-option=1,%s\n' % env.netmask)
                 if env.gateway != '':
                     fd.write('dhcp-option=3,%s\n' % env.gateway)
                     fd.write('dhcp-range=%s,%s\n' % (env.gateway, env.gateway))
                 if env.dns_int != '': fd.write('dhcp-option=6,%s\n' % env.dns_int)
+                if env.ntpserv != '': fd.write('dhcp-option=42,%s\n' % env.ntpserv)
             with open(no.r_dns, 'w') as fd:
                 if env.dns_ext != '': fd.write('nameserver\t%s\n' % env.dns_ext)
             with open(no.r_dhcp, 'w') as fd:

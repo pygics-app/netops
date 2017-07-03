@@ -152,7 +152,7 @@ def api_setHost(req):
 # Page
 #===============================================================================
 netops = PAGE(resource='resource', template=PAGE.TEMPLATE.SIMPLE_DK)
-netops.addCategory('Settings', 'cogs')
+netops.addCategory('DHCP & DNS', 'book')
 
 @PAGE.MAIN(netops, 'NetOps')
 def netops_main_page(req):
@@ -319,7 +319,7 @@ def netops_main_static_table(table, sr_id):
                          desc,
                          submit)
 
-@PAGE.MENU(netops, 'Settings::Environment', 'asterisk')
+@PAGE.MENU(netops, 'Environment', 'asterisk')
 def environment_setting(req):
     
     if req.method == 'POST':
@@ -330,6 +330,7 @@ def environment_setting(req):
     domain = INPUT.TEXT('domain', env.domain)
     cidr = INPUT.TEXT('cidr', env.cidr)
     gateway = INPUT.TEXT('gateway', env.gateway)
+    ntpserv = INPUT.TEXT('ntpserv', env.ntpserv)
     dns_int = INPUT.TEXT('dns_int', env.dns_int)
     dns_ext = INPUT.TEXT('dns_ext', env.dns_ext)
     
@@ -342,6 +343,7 @@ def environment_setting(req):
                 domain,
                 cidr,
                 gateway,
+                ntpserv,
                 dns_int,
                 dns_ext
             )
@@ -372,6 +374,10 @@ def environment_setting(req):
             gateway
         ),
         INPUT.GROUP().html(
+            INPUT.LABEL_TOP('NTP'),
+            ntpserv
+        ),
+        INPUT.GROUP().html(
             INPUT.LABEL_TOP('Internal DNS (NetOps IP)'),
             dns_int
         ),
@@ -381,7 +387,7 @@ def environment_setting(req):
         )
     )
 
-@PAGE.MENU(netops, 'Settings::Dynamic DHCP', 'map-signs')
+@PAGE.MENU(netops, 'DHCP & DNS::Dynamic DHCP', 'map-signs')
 def dynamic_dhcp_setting(req):
     
     name = INPUT.TEXT('name')
@@ -469,7 +475,7 @@ def dynamic_dhcp_table(table):
                     )
         )
 
-@PAGE.MENU(netops, 'Settings::Static DHCP', 'paperclip')
+@PAGE.MENU(netops, 'DHCP & DNS::Static DHCP', 'paperclip')
 def static_dhcp_setting(req):
     
     name = INPUT.TEXT('name')
@@ -537,3 +543,6 @@ def static_dhcp_table(table):
                              'static_dhcp_table_view', str(sr.id))
                    )
         )
+
+@PAGE.MENU(netops, 'NTP')
+def ntp_setting(req):
