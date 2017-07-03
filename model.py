@@ -142,7 +142,7 @@ class Environment(Model):
             env.update()
             drs = DynamicRange.list()
             hosts = Host.list()
-            with open(no.ntp_conf) as fd:
+            with open(no.ntp_conf, 'w') as fd:
                 if env.network != '' and env.netmask != '':
                     fd.write('''
 driftfile /var/lib/ntp/drift
