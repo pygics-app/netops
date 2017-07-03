@@ -572,9 +572,7 @@ def ntp_setting(req):
             INPUT.LABEL_LEFT('Month'),
             mon,
             INPUT.LABEL_LEFT('Day'),
-            day
-        ),
-        INPUT.GROUP().html(
+            day,
             INPUT.LABEL_LEFT('Hour'),
             hour,
             INPUT.LABEL_LEFT('Minute'),
