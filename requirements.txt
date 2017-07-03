@@ -1,5 +1,6 @@
 pip::ipaddress
 pkg::dnsmasq
+pkg::ntp
 app::grammar
 app::page
 app::bucket
