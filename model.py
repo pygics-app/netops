@@ -472,3 +472,4 @@ class Host(Model):
 #===============================================================================
 if not Environment.one():
     Environment().create()
+no.reload()
