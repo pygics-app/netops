@@ -151,7 +151,7 @@ def api_setHost(req):
 #===============================================================================
 # Page
 #===============================================================================
-netops = PAGE(resource='resource', template=PAGE.TEMPLATE.SIMPLE_DK)
+netops = PAGE(resource='resource', template=PAGE.TEMPLATE.SIMPLE)
 
 @PAGE.MAIN(netops, 'NetOps')
 def netops_main_page(req):
