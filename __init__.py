@@ -543,6 +543,3 @@ def static_dhcp_table(table):
                              'static_dhcp_table_view', str(sr.id))
                    )
         )
-
-@PAGE.MENU(netops, 'NTP')
-def ntp_setting(req):
