@@ -12,7 +12,7 @@ from page import *
 #===============================================================================
 # Internal APIs
 #===============================================================================
-from model import Environment, DynamicRange, StaticRange, Host, _host_models
+from model import Environment, DynamicRange, StaticRange, Host, _host_models, no
 
 #===============================================================================
 # REST APIs
@@ -548,6 +548,8 @@ def ntp_setting(req):
         td = req.data
         tstr = '%s-%s-%s %s:%s:%s' % (td['year'], td['mon'], td['day'], td['hour'], td['min'], td['sec'])
         os.system('date -s "%s"' % tstr)
+        no.stop_ntp()
+        no.start_ntp()
     
     cur = time.localtime()
     year = INPUT.TEXT('year', str(cur.tm_year))

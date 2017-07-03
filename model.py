@@ -26,19 +26,27 @@ class NetOps(pygics.__PYGICS__):
     
     def __release__(self):
         self.stop()
+        
+    def start_ntp(self):
+        ntp_cmd = '/usr/sbin/ntpd -u root:root -c %s -p %s -g' % (self.ntp_conf, self.ntp_pid)
+        print('NTP Start : %s' % ('ok' if os.system(ntp_cmd) == 0 else 'failed'))
+        return self
+    
+    def stop_ntp(self):
+        ntp_cmd = 'kill -9 `cat %s`; rm -rf %s' % (self.ntp_pid, self.ntp_pid)
+        print('NTP Stop : %s' % ('ok' if os.system(ntp_cmd) == 0 else 'failed'))
+        return self
     
     def start(self):
         dm_cmd = '/usr/sbin/dnsmasq --user=root --group=root -h -x %s -C %s -7 %s -r %s -H %s' % (self.pid, self.conf, self.d_dhcp, self.r_dns, self.h_dns)
         print('Dnsmasq Start : %s' % ('ok' if os.system(dm_cmd) == 0 else 'failed'))
-        ntp_cmd = '/usr/sbin/ntpd -u root:root -c %s -p %s -g' % (self.ntp_conf, self.ntp_pid)
-        print('NTP Start : %s' % ('ok' if os.system(ntp_cmd) == 0 else 'failed'))
+        self.start_ntp()
         return self
     
     def stop(self):
         dm_cmd = 'kill -9 `cat %s`; rm -rf %s' % (self.pid, self.pid)
         print('Dnsmasq Stop : %s' % ('ok' if os.system(dm_cmd) == 0 else 'failed'))
-        ntp_cmd = 'kill -9 `cat %s`; rm -rf %s' % (self.ntp_pid, self.ntp_pid)
-        print('NTP Stop : %s' % ('ok' if os.system(ntp_cmd) == 0 else 'failed'))
+        self.stop_ntp()
         return self
     
     def reload(self):
