@@ -4,6 +4,7 @@ Created on 2017. 6. 10.
 @author: HyechurnJang
 '''
 
+import time
 import pygics
 from page import *
 
@@ -542,4 +543,42 @@ def static_dhcp_table(table):
 @PAGE.MENU(netops, 'NTP')
 def ntp_setting(req):
     
-    return 'OK'
+    if req.method == 'POST':
+        td = req.data
+        tstr = '%s-%s-%s %s:%s:%s' % (td['year'], td['mon'], td['day'], td['hour'], td['min'], td['sec'])
+        print tstr
+    
+    cur = time.localtime()
+    year = INPUT.TEXT('year', str(cur.tm_year))
+    mon = INPUT.TEXT('mon', str(cur.tm_mon))
+    day = INPUT.TEXT('day', str(cur.tm_mday))
+    hour = INPUT.TEXT('hour', str(cur.tm_hour))
+    min = INPUT.TEXT('min', str(cur.tm_min))
+    sec = INPUT.TEXT('sec', str(cur.tm_sec))
+    
+    return DIV().html(
+        HEAD(1, STYLE='float:left;').html('Clock Setting'),
+        DIV(STYLE='float:right;margin:20px 0px 10px 20px;').html(
+            netops.context(
+                BUTTON(CLASS='btn-primary', STYLE='height:39px;').html('Save'),
+                'ntp_setting',
+                year, mon, day, hour, min, sec,
+            )
+        ),
+        INPUT.GROUP().html(
+            INPUT.LABEL_LEFT('Year'),
+            year,
+            INPUT.LABEL_LEFT('Month'),
+            mon,
+            INPUT.LABEL_LEFT('Day'),
+            day
+        ),
+        INPUT.GROUP().html(
+            INPUT.LABEL_LEFT('Hour'),
+            hour,
+            INPUT.LABEL_LEFT('Minute'),
+            min,
+            INPUT.LABEL_LEFT('Sec'),
+            sec
+        )
+    )
