@@ -329,7 +329,7 @@ def environment_setting(req):
     domain = INPUT.TEXT('domain', env.domain)
     cidr = INPUT.TEXT('cidr', env.cidr)
     gateway = INPUT.TEXT('gateway', env.gateway)
-    netops = INPUT.TEXT('netops', env.netops)
+    noserv = INPUT.TEXT('netops', env.netops)
     dns_ext = INPUT.TEXT('dns_ext', env.dns_ext)
     
     return DIV().html(
@@ -341,7 +341,7 @@ def environment_setting(req):
                 domain,
                 cidr,
                 gateway,
-                netops,
+                noserv,
                 dns_ext
             )
         ),
@@ -372,7 +372,7 @@ def environment_setting(req):
         ),
         INPUT.GROUP().html(
             INPUT.LABEL_TOP('NetOps (Internal DNS & NTP)'),
-            netops
+            noserv
         ),
         INPUT.GROUP().html(
             INPUT.LABEL_TOP('External DNS'),
