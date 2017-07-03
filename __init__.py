@@ -24,7 +24,7 @@ def api_getEnv(req):
             'prefix' : env.prefix,
             'netmask' : env.netmask,
             'gateway' : env.gateway,
-            'dns_internal' : env.dns_int,
+            'netops' : env.netops,
             'dns_external' : env.dns_ext}
 
 @pygics.api('POST', '/api/env')
@@ -36,7 +36,7 @@ def api_setEnv(req):
             'prefix' : env.prefix,
             'netmask' : env.netmask,
             'gateway' : env.gateway,
-            'dns_internal' : env.dns_int,
+            'netops' : env.netops,
             'dns_external' : env.dns_ext}
 
 @pygics.api('GET', '/api/dynamicrange')
@@ -329,8 +329,7 @@ def environment_setting(req):
     domain = INPUT.TEXT('domain', env.domain)
     cidr = INPUT.TEXT('cidr', env.cidr)
     gateway = INPUT.TEXT('gateway', env.gateway)
-    ntpserv = INPUT.TEXT('ntpserv', env.ntpserv)
-    dns_int = INPUT.TEXT('dns_int', env.dns_int)
+    netops = INPUT.TEXT('netops', env.netops)
     dns_ext = INPUT.TEXT('dns_ext', env.dns_ext)
     
     return DIV().html(
@@ -342,8 +341,7 @@ def environment_setting(req):
                 domain,
                 cidr,
                 gateway,
-                ntpserv,
-                dns_int,
+                netops,
                 dns_ext
             )
         ),
@@ -373,12 +371,8 @@ def environment_setting(req):
             gateway
         ),
         INPUT.GROUP().html(
-            INPUT.LABEL_TOP('NTP'),
-            ntpserv
-        ),
-        INPUT.GROUP().html(
-            INPUT.LABEL_TOP('Internal DNS (NetOps IP)'),
-            dns_int
+            INPUT.LABEL_TOP('NetOps (Internal DNS & NTP)'),
+            netops
         ),
         INPUT.GROUP().html(
             INPUT.LABEL_TOP('External DNS'),
@@ -544,3 +538,8 @@ def static_dhcp_table(table):
                              'static_dhcp_table_view', str(sr.id))
                    )
         )
+
+@PAGE.MENU(netops, 'NTP')
+def ntp_setting(req):
+    
+    return 'OK'

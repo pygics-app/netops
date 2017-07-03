@@ -21,8 +21,8 @@ class NetOps(pygics.__PYGICS__):
         self.h_dhcp = self.d_dhcp + '/host.conf'
         self.r_dns = base_dir + '/resolv.dns'
         self.h_dns = base_dir + '/host.dns'
-        self.ntp_conf = base_dir + '/netops_ntp.conf'
-        self.ntp_pid = base_dir + '/netops_ntp.pid'
+        self.ntp_conf = base_dir + '/ntp.conf'
+        self.ntp_pid = base_dir + '/ntp.pid'
     
     def __release__(self):
         self.stop()
@@ -60,23 +60,21 @@ class Environment(Model):
     prefix = Column(String(4))
     netmask = Column(String(16))
     gateway = Column(String(16))
-    ntpserv = Column(String(16))
-    dns_int = Column(String(16))
+    netops = Column(String(16))
     dns_ext = Column(String(16))
     
-    def __init__(self, domain='', cidr='', network='', prefix='', netmask='', ntpserv='', gateway='', dns_int='', dns_ext=''):
+    def __init__(self, domain='', cidr='', network='', prefix='', netmask='', gateway='', netops='', dns_ext=''):
         self.domain = domain
         self.cidr = cidr
         self.network = network
         self.prefix = prefix
         self.netmask = netmask
         self.gateway = gateway
-        self.ntpserv = ntpserv
-        self.dns_int = dns_int
+        self.netops = netops
         self.dns_ext = dns_ext
     
     @classmethod
-    def set(cls, domain='', cidr='', gateway='', ntpserv='', dns_int='', dns_ext=''):
+    def set(cls, domain='', cidr='', gateway='', netops='', dns_ext=''):
         kv = re.match('^\s*(?P<domain>\w[\w\-\.]*)\s*$', domain)
         domain = kv.group('domain') if kv != None else ''
         network, prefix = grammar.Network.isCIDR(cidr)
@@ -88,8 +86,7 @@ class Environment(Model):
             cidr = None
             netmask = None
         gateway = grammar.Network.isIP(gateway)
-        ntpserv = grammar.Network.isIP(ntpserv)
-        dns_int = grammar.Network.isIP(dns_int)
+        netops = grammar.Network.isIP(netops)
         dns_ext = grammar.Network.isIP(dns_ext)
         
         netops_lock.acquire()
@@ -119,27 +116,18 @@ class Environment(Model):
                     gw.range_id = -1
                     gw.update()
                     env.gateway = gateway
-            if ntpserv:
-                ntp = Host.one(Host.ip==ntpserv)
-                if ntp:
-                    ntp.name = 'ntp'
-                    ntp.range_type = 'environment'
-                    ntp.range_name = 'env'
-                    ntp.range_id = -1
-                    ntp.update()
-                    env.ntpserv = ntpserv
-            if dns_int:
-                di = Host.one(Host.ip==dns_int)
+            if netops:
+                di = Host.one(Host.ip==netops)
                 if di:
-                    di.name = 'dns'
+                    di.name = 'netops'
                     di.range_type = 'environment'
                     di.range_name = 'env'
                     di.range_id = -1
                     di.update()
-                    env.dns_int = dns_int
+                    env.netops = netops
             if dns_ext: env.dns_ext = dns_ext
-            
             env.update()
+            
             drs = DynamicRange.list()
             hosts = Host.list()
             with open(no.ntp_conf, 'w') as fd:
@@ -157,8 +145,8 @@ disable monitor''' % (env.network, env.netmask))
                 if env.gateway != '':
                     fd.write('dhcp-option=3,%s\n' % env.gateway)
                     fd.write('dhcp-range=%s,%s\n' % (env.gateway, env.gateway))
-                if env.dns_int != '': fd.write('dhcp-option=6,%s\n' % env.dns_int)
-                if env.ntpserv != '': fd.write('dhcp-option=42,%s\n' % env.ntpserv)
+                if env.netops != '':
+                    fd.write('dhcp-option=6,%s\ndhcp-option=42,%s\n' % (env.netops, env.netops))
             with open(no.r_dns, 'w') as fd:
                 if env.dns_ext != '': fd.write('nameserver\t%s\n' % env.dns_ext)
             with open(no.r_dhcp, 'w') as fd:
