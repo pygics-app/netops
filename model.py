@@ -148,6 +148,7 @@ class Environment(Model):
 driftfile /var/lib/ntp/drift
 restrict %s mask %s nomodify notrap
 server 127.127.1.0
+fudge 127.127.1.0 stratum 10
 includefile /etc/ntp/crypto/pw
 keys /etc/ntp/keys
 disable monitor''' % (env.network, env.netmask))
