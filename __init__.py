@@ -152,7 +152,6 @@ def api_setHost(req):
 # Page
 #===============================================================================
 netops = PAGE(resource='resource', template=PAGE.TEMPLATE.SIMPLE_DK)
-netops.addCategory('DHCP & DNS', 'book')
 
 @PAGE.MAIN(netops, 'NetOps')
 def netops_main_page(req):
@@ -386,6 +385,8 @@ def environment_setting(req):
             dns_ext
         )
     )
+
+netops.addCategory('DHCP & DNS', 'book')
 
 @PAGE.MENU(netops, 'DHCP & DNS::Dynamic DHCP', 'map-signs')
 def dynamic_dhcp_setting(req):
