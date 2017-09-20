@@ -17,7 +17,7 @@ from model import Environment, DynamicRange, StaticRange, Host, _host_models, no
 #===============================================================================
 # REST APIs
 #===============================================================================
-@pygics.api('GET', '/api/env')
+@pygics.api('GET', 'api/env')
 def api_getEnv(req):
     env = Environment.one()
     return {'domain' : env.domain,
@@ -29,7 +29,7 @@ def api_getEnv(req):
             'netops' : env.netops,
             'dns_external' : env.dns_ext}
 
-@pygics.api('POST', '/api/env')
+@pygics.api('POST', 'api/env')
 def api_setEnv(req):
     env = Environment.set(**req.data)
     return {'domain' : env.domain,
@@ -41,7 +41,7 @@ def api_setEnv(req):
             'netops' : env.netops,
             'dns_external' : env.dns_ext}
 
-@pygics.api('GET', '/api/dynamicrange')
+@pygics.api('GET', 'api/dynamicrange')
 def api_getDynamicRange(req, id=None):
     if id != None:
         dr = DynamicRange.get(id)
@@ -62,7 +62,7 @@ def api_getDynamicRange(req, id=None):
                     'desc' : dr.desc})
     return ret
 
-@pygics.api('POST', '/api/dynamicrange')
+@pygics.api('POST', 'api/dynamicrange')
 def api_addDynamicRange(req):
     dr = DynamicRange.add(**req.data)
     if dr:
@@ -75,11 +75,11 @@ def api_addDynamicRange(req):
                 'desc' : dr.desc}
     return None
 
-@pygics.api('DELETE', '/api/dynamicrange')
+@pygics.api('DELETE', 'api/dynamicrange')
 def api_delDynamicRange(req, id):
     return DynamicRange.remove(id)
 
-@pygics.api('GET', '/api/staticrange')
+@pygics.api('GET', 'api/staticrange')
 def api_getStaticRange(req, id=None):
     if id != None:
         sr = StaticRange.get(id)
@@ -98,7 +98,7 @@ def api_getStaticRange(req, id=None):
                     'desc' : sr.desc})
     return ret
 
-@pygics.api('POST', '/api/staticrange')
+@pygics.api('POST', 'api/staticrange')
 def api_addStaticRange(req):
     sr = StaticRange.add(**req.data)
     if sr:
@@ -109,11 +109,11 @@ def api_addStaticRange(req):
                 'desc' : sr.desc}
     return None
 
-@pygics.api('DELETE', '/api/staticrange')
+@pygics.api('DELETE', 'api/staticrange')
 def api_delStaticRange(req, id):
     return StaticRange.remove(id)
 
-@pygics.api('GET', '/api/host')
+@pygics.api('GET', 'api/host')
 def api_getHost(req, id=None):
     if id != None:
         host = Host.get(id)
@@ -136,7 +136,7 @@ def api_getHost(req, id=None):
                     'ip' : host.ip})
     return ret
 
-@pygics.api('POST', '/api/host')
+@pygics.api('POST', 'api/host')
 def api_setHost(req):
     host = Host.set(**req.data)
     if host:
