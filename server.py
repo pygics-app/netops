@@ -6,6 +6,4 @@ Created on 2017. 5. 29.
 
 import pygics
 
-pygics.server('0.0.0.0',
-              80,
-              '../netops')
+pygics.server('0.0.0.0', 80, '../netops')
